@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 
-// 1. Comprehensive Exercise Database
 const EXERCISE_DATABASE = {
   "Chest": ["Flat Barbell Bench Press", "Incline Dumbbell Press", "Cable Crossovers", "Dips", "Pec Deck Flyes"],
   "Back": ["Barbell Deadlift", "Pull-ups", "Lat Pulldowns", "Barbell Bent-Over Row", "Seated Cable Row", "Face Pulls"],
@@ -11,26 +10,20 @@ const EXERCISE_DATABASE = {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('workout'); // 'workout' or 'history'
+  const [activeTab, setActiveTab] = useState('workout');
   const [workoutHistory, setWorkoutHistory] = useState([]);
-  
-  // State for the active workout session
   const [activeWorkout, setActiveWorkout] = useState({});
-  const [workoutTitle, setWorkoutTitle] = useState("Hypertrophy Session A");
-  const [startTime, setStartTime] = useState(Date.now());
+  const [workoutTitle, setWorkoutTitle] = useState("Premium Session A");
 
-  // Initialization: Load history from Local Storage
   useEffect(() => {
-    const history = JSON.parse(localStorage.getItem('fitnessHistory')) || [];
+    const history = JSON.parse(localStorage.getItem('eliteFitnessHistory')) || [];
     setWorkoutHistory(history);
   }, []);
 
-  // Handle Input for Active Workout
   const updateSet = (exercise, setIndex, field, value) => {
     const updatedWorkout = { ...activeWorkout };
     if (!updatedWorkout[exercise]) {
-      // Initialize exercise with 3 default sets if it doesn't exist
-      updatedWorkout[exercise] = [{ reps: '', weight: '', completed: false }, { reps: '', weight: '', completed: false }, { reps: '', weight: '', completed: false }];
+      updatedWorkout[exercise] = [{ reps: '', weight: '', completed: false }];
     }
     updatedWorkout[exercise][setIndex][field] = value;
     setActiveWorkout(updatedWorkout);
@@ -49,9 +42,8 @@ export default function App() {
     setActiveWorkout(updatedWorkout);
   };
 
-  // Save Workout to History
   const finishWorkout = () => {
-    if (Object.keys(activeWorkout).length === 0) return alert("Add some exercises first!");
+    if (Object.keys(activeWorkout).length === 0) return alert("Log data to proceed.");
     
     const newEntry = {
       id: Date.now(),
@@ -62,33 +54,28 @@ export default function App() {
 
     const newHistory = [newEntry, ...workoutHistory];
     setWorkoutHistory(newHistory);
-    localStorage.setItem('fitnessHistory', JSON.stringify(newHistory));
+    localStorage.setItem('eliteFitnessHistory', JSON.stringify(newHistory));
     
-    // Reset active workout
     setActiveWorkout({});
-    setStartTime(Date.now());
-    alert('Workout securely logged to device storage.');
     setActiveTab('history');
   };
 
   return (
     <div style={styles.appContainer}>
-      {/* Dynamic Render based on Tab */}
       {activeTab === 'workout' ? (
         <div style={styles.contentScroll}>
           <header style={styles.header}>
-            <div>
+            <div style={{ flex: 1 }}>
               <input 
                 style={styles.workoutTitleInput} 
                 value={workoutTitle} 
                 onChange={(e) => setWorkoutTitle(e.target.value)} 
               />
-              <p style={styles.timerText}>Recording Session...</p>
+              <p style={styles.timerText}>Tracking via Local Encryption</p>
             </div>
-            <button onClick={finishWorkout} style={styles.finishButton}>Finish</button>
+            <button onClick={finishWorkout} style={styles.finishButton}>Complete</button>
           </header>
 
-          {/* Render All Categories and Exercises */}
           {Object.entries(EXERCISE_DATABASE).map(([category, exercises]) => (
             <div key={category} style={styles.categorySection}>
               <h2 style={styles.categoryTitle}>{category}</h2>
@@ -100,7 +87,6 @@ export default function App() {
                   <div key={exercise} style={styles.card}>
                     <div style={styles.cardHeader}>
                       <h3 style={styles.exerciseName}>{exercise}</h3>
-                      <span style={styles.moreOptionsIcon}>•••</span>
                     </div>
 
                     <div style={styles.tableHeader}>
@@ -112,7 +98,11 @@ export default function App() {
                     </div>
 
                     {sets.map((set, idx) => (
-                      <div key={idx} style={{...styles.setRow, backgroundColor: set.completed ? '#E8F5E9' : 'transparent'}}>
+                      <div key={idx} style={{
+                        ...styles.setRow, 
+                        backgroundColor: set.completed ? 'rgba(10, 132, 255, 0.1)' : 'transparent',
+                        borderLeft: set.completed ? '3px solid #0A84FF' : '3px solid transparent'
+                      }}>
                         <span style={styles.setIndex}>{idx + 1}</span>
                         <span style={styles.prevText}>-</span>
                         <input 
@@ -131,7 +121,11 @@ export default function App() {
                         />
                         <button 
                           onClick={() => toggleSetCompletion(exercise, idx)}
-                          style={{...styles.checkButton, backgroundColor: set.completed ? '#34C759' : '#E5E5EA'}}
+                          style={{
+                            ...styles.checkButton, 
+                            backgroundColor: set.completed ? '#0A84FF' : '#1C1C1E',
+                            color: set.completed ? '#FFFFFF' : '#48484A'
+                          }}
                         >
                           ✓
                         </button>
@@ -139,7 +133,7 @@ export default function App() {
                     ))}
                     
                     <button onClick={() => addSet(exercise)} style={styles.addSetButton}>
-                      + Add Set
+                      + ADD SET
                     </button>
                   </div>
                 );
@@ -149,123 +143,152 @@ export default function App() {
         </div>
       ) : (
         <div style={styles.contentScroll}>
-          <h1 style={{padding: '20px', fontSize: '28px', fontWeight: 'bold'}}>Workout History</h1>
+          <header style={styles.header}>
+            <h1 style={{margin: 0, fontSize: '24px', fontWeight: '700', color: '#FFFFFF'}}>Training Log</h1>
+          </header>
           {workoutHistory.length === 0 ? (
-            <p style={{padding: '20px', color: '#8E8E93'}}>No previous workouts logged.</p>
+            <p style={{padding: '20px', color: '#8E8E93', textAlign: 'center'}}>No historical data established.</p>
           ) : (
-            workoutHistory.map(entry => (
-              <div key={entry.id} style={styles.historyCard}>
-                <h3 style={{margin: '0 0 5px 0', fontSize: '18px'}}>{entry.title}</h3>
-                <p style={{color: '#8E8E93', fontSize: '14px', margin: '0 0 15px 0'}}>{entry.date}</p>
-                {Object.entries(entry.data).map(([exName, exSets]) => {
-                  const completedSets = exSets.filter(s => s.completed).length;
-                  if (completedSets === 0) return null;
-                  return (
-                    <div key={exName} style={{fontSize: '14px', borderBottom: '1px solid #E5E5EA', padding: '8px 0'}}>
-                      <strong>{completedSets} sets</strong> - {exName}
-                    </div>
-                  );
-                })}
-              </div>
-            ))
+            <div style={{padding: '15px'}}>
+              {workoutHistory.map(entry => (
+                <div key={entry.id} style={styles.historyCard}>
+                  <div style={styles.historyHeader}>
+                    <h3 style={{margin: 0, fontSize: '18px', color: '#FFFFFF'}}>{entry.title}</h3>
+                    <p style={{color: '#0A84FF', fontSize: '12px', margin: 0}}>{entry.date}</p>
+                  </div>
+                  {Object.entries(entry.data).map(([exName, exSets]) => {
+                    const completedSets = exSets.filter(s => s.completed).length;
+                    if (completedSets === 0) return null;
+                    return (
+                      <div key={exName} style={styles.historyDetail}>
+                        <span style={{color: '#0A84FF', fontWeight: 'bold'}}>{completedSets} SETS</span>
+                        <span style={{color: '#D1D1D6', marginLeft: '10px'}}>{exName}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
 
-      {/* Bottom Navigation */}
       <nav style={styles.bottomNav}>
         <button 
-          style={{...styles.navButton, color: activeTab === 'workout' ? '#007AFF' : '#8E8E93'}}
+          style={{...styles.navButton, color: activeTab === 'workout' ? '#FFFFFF' : '#48484A'}}
           onClick={() => setActiveTab('workout')}
         >
-          Workout
+          <span style={{...styles.navIndicator, backgroundColor: activeTab === 'workout' ? '#0A84FF' : 'transparent'}} />
+          TRAIN
         </button>
         <button 
-          style={{...styles.navButton, color: activeTab === 'history' ? '#007AFF' : '#8E8E93'}}
+          style={{...styles.navButton, color: activeTab === 'history' ? '#FFFFFF' : '#48484A'}}
           onClick={() => setActiveTab('history')}
         >
-          History
+          <span style={{...styles.navIndicator, backgroundColor: activeTab === 'history' ? '#0A84FF' : 'transparent'}} />
+          HISTORY
         </button>
       </nav>
     </div>
   );
 }
 
-// 2. iOS-Inspired Styling
+// Global Gym Premium UI/UX Design System
 const styles = {
   appContainer: {
     display: 'flex', flexDirection: 'column', height: '100vh', 
-    backgroundColor: '#F2F2F7', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+    backgroundColor: '#000000', // Deep Obsidian
+    color: '#FFFFFF',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif'
   },
   contentScroll: {
-    flex: 1, overflowY: 'auto', paddingBottom: '80px'
+    flex: 1, overflowY: 'auto', paddingBottom: '90px'
   },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-    padding: '20px', backgroundColor: '#FFFFFF', borderBottom: '1px solid #E5E5EA', position: 'sticky', top: 0, zIndex: 10
+    padding: '20px 20px 15px 20px', backgroundColor: 'rgba(0, 0, 0, 0.85)', 
+    backdropFilter: 'blur(10px)', borderBottom: '1px solid #1C1C1E', 
+    position: 'sticky', top: 0, zIndex: 10
   },
   workoutTitleInput: {
-    fontSize: '22px', fontWeight: 'bold', border: 'none', outline: 'none', width: '100%'
+    fontSize: '24px', fontWeight: '700', color: '#FFFFFF', backgroundColor: 'transparent',
+    border: 'none', outline: 'none', width: '100%', letterSpacing: '-0.5px'
   },
   timerText: {
-    fontSize: '14px', color: '#8E8E93', margin: '5px 0 0 0'
+    fontSize: '12px', color: '#8E8E93', margin: '4px 0 0 0', textTransform: 'uppercase', letterSpacing: '1px'
   },
   finishButton: {
-    backgroundColor: '#007AFF', color: 'white', border: 'none', borderRadius: '20px', 
-    padding: '8px 20px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer'
+    backgroundColor: '#0A84FF', color: '#FFFFFF', border: 'none', borderRadius: '8px', 
+    padding: '10px 24px', fontSize: '14px', fontWeight: '700', cursor: 'pointer',
+    letterSpacing: '0.5px', textTransform: 'uppercase'
   },
   categorySection: {
-    padding: '10px 15px'
+    padding: '20px 15px 0 15px'
   },
   categoryTitle: {
-    fontSize: '18px', color: '#8E8E93', textTransform: 'uppercase', marginBottom: '10px', marginLeft: '5px'
+    fontSize: '14px', color: '#0A84FF', textTransform: 'uppercase', 
+    letterSpacing: '2px', marginBottom: '15px', marginLeft: '5px', fontWeight: '600'
   },
   card: {
-    backgroundColor: '#FFFFFF', borderRadius: '16px', padding: '15px', 
-    marginBottom: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.03)'
+    backgroundColor: '#0A0A0A', border: '1px solid #1C1C1E', borderRadius: '12px', 
+    padding: '20px', marginBottom: '20px'
   },
   cardHeader: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'
+    marginBottom: '20px'
   },
   exerciseName: {
-    margin: 0, fontSize: '18px', fontWeight: '600', color: '#000'
-  },
-  moreOptionsIcon: {
-    color: '#007AFF', fontSize: '20px', fontWeight: 'bold'
+    margin: 0, fontSize: '18px', fontWeight: '600', color: '#FFFFFF', letterSpacing: '-0.3px'
   },
   tableHeader: {
-    display: 'flex', fontSize: '12px', color: '#8E8E93', fontWeight: '600', marginBottom: '10px'
+    display: 'flex', fontSize: '11px', color: '#8E8E93', fontWeight: '600', 
+    marginBottom: '15px', letterSpacing: '1px'
   },
   setRow: {
-    display: 'flex', alignItems: 'center', marginBottom: '8px', padding: '4px 0', borderRadius: '8px'
+    display: 'flex', alignItems: 'center', marginBottom: '10px', padding: '6px 0', 
+    borderRadius: '6px', transition: 'all 0.3s ease'
   },
   setIndex: {
-    flex: 0.5, textAlign: 'center', fontWeight: 'bold', color: '#8E8E93'
+    flex: 0.5, textAlign: 'center', fontWeight: '600', color: '#8E8E93'
   },
   prevText: {
-    flex: 1, textAlign: 'center', color: '#C7C7CC', fontSize: '14px'
+    flex: 1, textAlign: 'center', color: '#48484A', fontSize: '14px'
   },
   inputField: {
-    flex: 1, backgroundColor: '#F2F2F7', border: 'none', borderRadius: '8px', 
-    padding: '10px', margin: '0 4px', textAlign: 'center', fontSize: '16px', fontWeight: '600'
+    flex: 1, backgroundColor: '#1C1C1E', border: 'none', borderRadius: '6px', color: '#FFFFFF',
+    padding: '12px 10px', margin: '0 4px', textAlign: 'center', fontSize: '16px', fontWeight: '600'
   },
   checkButton: {
-    flex: 0.5, height: '35px', border: 'none', borderRadius: '8px', 
-    color: 'white', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center'
+    flex: 0.5, height: '40px', border: 'none', borderRadius: '6px', 
+    fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', 
+    alignItems: 'center', transition: 'background-color 0.2s ease'
   },
   addSetButton: {
-    width: '100%', marginTop: '10px', padding: '10px', backgroundColor: 'transparent', 
-    border: 'none', color: '#007AFF', fontSize: '16px', fontWeight: '500', cursor: 'pointer'
+    width: '100%', marginTop: '15px', padding: '12px', backgroundColor: 'transparent', 
+    border: '1px dashed #2C2C2E', borderRadius: '8px', color: '#0A84FF', 
+    fontSize: '13px', fontWeight: '700', cursor: 'pointer', letterSpacing: '1px'
   },
   historyCard: {
-    backgroundColor: '#FFFFFF', borderRadius: '16px', padding: '20px', 
-    margin: '10px 15px', boxShadow: '0 2px 10px rgba(0,0,0,0.03)'
+    backgroundColor: '#0A0A0A', border: '1px solid #1C1C1E', borderRadius: '12px', 
+    padding: '20px', marginBottom: '15px'
+  },
+  historyHeader: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    borderBottom: '1px solid #1C1C1E', paddingBottom: '15px', marginBottom: '15px'
+  },
+  historyDetail: {
+    fontSize: '14px', padding: '8px 0', display: 'flex', alignItems: 'center'
   },
   bottomNav: {
-    display: 'flex', justifyContent: 'space-around', padding: '15px', 
-    backgroundColor: '#FFFFFF', borderTop: '1px solid #E5E5EA', position: 'fixed', bottom: 0, width: '100%'
+    display: 'flex', justifyContent: 'space-around', padding: '10px 0 25px 0', 
+    backgroundColor: 'rgba(0, 0, 0, 0.9)', backdropFilter: 'blur(10px)',
+    borderTop: '1px solid #1C1C1E', position: 'fixed', bottom: 0, width: '100%'
   },
   navButton: {
-    backgroundColor: 'transparent', border: 'none', fontSize: '16px', fontWeight: '600', cursor: 'pointer'
+    backgroundColor: 'transparent', border: 'none', fontSize: '11px', 
+    fontWeight: '700', cursor: 'pointer', letterSpacing: '1.5px', 
+    display: 'flex', flexDirection: 'column', alignItems: 'center'
+  },
+  navIndicator: {
+    width: '4px', height: '4px', borderRadius: '50%', marginBottom: '6px'
   }
 };
