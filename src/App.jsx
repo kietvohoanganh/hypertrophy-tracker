@@ -1,13 +1,34 @@
 import React, { useState, useEffect } from 'react';
 
 // 1. Comprehensive Exercise Database
+// 1. Comprehensive Exercise Database (Updated)
 const EXERCISE_DATABASE = {
-  "Chest": ["Bench Press", "Incline Dumbbell Press", "Cable Crossovers", "Dips"],
-  "Back": ["Barbell Deadlift", "Pull-ups", "Lat Pulldowns", "Barbell Row"],
-  "Shoulders": ["Overhead Press", "Lateral Raises", "Arnold Press", "Face Pulls"],
-  "Legs": ["Barbell Squat", "Romanian Deadlift", "Leg Press", "Calf Raises"],
-  "Arms": ["Bicep Curls", "Triceps Pushdown", "Skull Crushers", "Hammer Curls"],
-  "Core": ["Hanging Leg Raises", "Cable Crunches", "Plank"]
+  "Chest": [
+    "Bench Press", "Incline Dumbbell Press", "Cable Crossovers", "Dips",
+    "Low Incline Dumbbell Press", "Flat Dumbbell Fly", "Deficit Push-up"
+  ],
+  "Back": [
+    "Barbell Deadlift", "Pull-ups", "Lat Pulldowns", "Barbell Row",
+    "Lat Prayer (Straight Arm Pulldown)", "Deficit Barbell Row"
+  ],
+  "Shoulders": [
+    "Overhead Press", "Lateral Raises", "Arnold Press", "Face Pulls",
+    "Seated Dumbbell Lateral Raise", "Super ROM Lateral Raise"
+  ],
+  "Legs": [
+    "Barbell Squat", "Romanian Deadlift", "Leg Press", "Calf Raises",
+    "High Bar Squat", "Hack Squat", "Reverse Nordic", 
+    "Front Foot Elevated Smith Lunge", "Glute Thrust Machine", 
+    "Sit Back Squat", "Stiff Legged Deadlift", "Seated/Lying Leg Curl"
+  ],
+  "Arms": [
+    "Bicep Curls", "Triceps Pushdown", "Skull Crushers", "Hammer Curls",
+    "Seated Overhead Tricep Extension", "Dip Machine",
+    "Decline Dumbbell Curl", "Incline Dumbbell Curl", "Superman Cable Curl"
+  ],
+  "Core": [
+    "Hanging Leg Raises", "Cable Crunches", "Plank"
+  ]
 };
 
 export default function App() {
