@@ -16,10 +16,24 @@ const EXERCISE_DATABASE = {
     "Seated Dumbbell Lateral Raise", "Super ROM Lateral Raise"
   ],
   "Legs": [
-    "Barbell Squat", "Romanian Deadlift", "Leg Press", "Calf Raises",
-    "High Bar Squat", "Hack Squat", "Reverse Nordic", 
-    "Front Foot Elevated Smith Lunge", "Glute Thrust Machine", 
-    "Sit Back Squat", "Stiff Legged Deadlift", "Seated/Lying Leg Curl"
+    // Quads
+    "Barbell Squat", "High Bar Squat", "Front Squat", "Goblet Squat", 
+    "Hack Squat", "Leg Press", "Reverse Nordic", "Sissy Squat", 
+    "Leg Extensions", "Bulgarian Split Squat", "Front Foot Elevated Smith Lunge",
+    "Seated Machine Adductor",
+    
+    // Hamstrings
+    "Romanian Deadlift (RDL)", "Stiff Legged Deadlift", "Single-Leg RDL",
+    "Good Mornings", "Seated/Lying Leg Curl", "Glute-Ham Raise (GHR)", 
+    "Nordic Hamstring Curl",
+
+    // Glutes
+    "Glute Thrust Machine", "Barbell Hip Thrust", "Sit Back Squat", 
+    "Deficit Reverse Lunge", "Cable Glute Kickbacks", "Weighted Step-Ups",
+    "Seated Machine Abductor",
+
+    // Calves & Lower Leg
+    "Calf Raises", "Standing Calf Raise", "Seated Calf Raise", "Tibialis Raise"
   ],
   "Arms": [
     "Bicep Curls", "Triceps Pushdown", "Skull Crushers", "Hammer Curls",
