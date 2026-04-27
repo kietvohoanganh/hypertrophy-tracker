@@ -1,37 +1,42 @@
 import React, { useState, useEffect } from 'react';
 
-const EXERCISE_DATABASE = {
-  "Chest": ["Flat Barbell Bench Press", "Incline Dumbbell Press", "Cable Crossovers", "Dips", "Pec Deck Flyes"],
-  "Back": ["Barbell Deadlift", "Pull-ups", "Lat Pulldowns", "Barbell Bent-Over Row", "Seated Cable Row", "Face Pulls"],
-  "Shoulders": ["Overhead Military Press", "Dumbbell Lateral Raises", "Arnold Press", "Reverse Pec Deck", "Upright Rows"],
-  "Legs": ["Barbell Squat", "Romanian Deadlift (RDL)", "Leg Press", "Bulgarian Split Squats", "Leg Extensions", "Calf Raises"],
-  "Arms": ["Barbell Bicep Curls", "Tricep Rope Pushdowns", "Skull Crushers", "Hammer Curls", "Preacher Curls"],
-  "Core": ["Hanging Leg Raises", "Cable Crunches", "Plank", "Russian Twists", "Ab Wheel Rollouts"]
-};
-
 export default function App() {
-  const [activeTab, setActiveTab] = useState('workout');
-  const [workoutHistory, setWorkoutHistory] = useState([]);
-  const [activeWorkout, setActiveWorkout] = useState({});
-  const [workoutTitle, setWorkoutTitle] = useState("Premium Session A");
+  const [activeTab, setActiveTab] = useState('workout'); // Home, Explore, Workout, Progress, You
+  
+  // Giả lập trạng thái một buổi tập đang diễn ra giống trong video
+  const [activeWorkout, setActiveWorkout] = useState({
+    "Bench Press": [
+      { reps: '8', weight: '85', completed: true },
+      { reps: '6', weight: '85', completed: true },
+      { reps: '', weight: '', completed: false }
+    ],
+    "Triceps Pushdown": [
+      { reps: '', weight: '', completed: false },
+      { reps: '', weight: '', completed: false }
+    ]
+  });
 
+  // Đồng hồ bấm giờ buổi tập
+  const [seconds, setSeconds] = useState(15);
   useEffect(() => {
-    const history = JSON.parse(localStorage.getItem('eliteFitnessHistory')) || [];
-    setWorkoutHistory(history);
+    const interval = setInterval(() => setSeconds(s => s + 1), 1000);
+    return () => clearInterval(interval);
   }, []);
+
+  const formatTime = (totalSeconds) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `00:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const updateSet = (exercise, setIndex, field, value) => {
     const updatedWorkout = { ...activeWorkout };
-    if (!updatedWorkout[exercise]) {
-      updatedWorkout[exercise] = [{ reps: '', weight: '', completed: false }];
-    }
     updatedWorkout[exercise][setIndex][field] = value;
     setActiveWorkout(updatedWorkout);
   };
 
   const addSet = (exercise) => {
     const updatedWorkout = { ...activeWorkout };
-    if (!updatedWorkout[exercise]) updatedWorkout[exercise] = [];
     updatedWorkout[exercise].push({ reps: '', weight: '', completed: false });
     setActiveWorkout(updatedWorkout);
   };
@@ -42,253 +47,196 @@ export default function App() {
     setActiveWorkout(updatedWorkout);
   };
 
-  const finishWorkout = () => {
-    if (Object.keys(activeWorkout).length === 0) return alert("Log data to proceed.");
-    
-    const newEntry = {
-      id: Date.now(),
-      date: new Date().toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-      title: workoutTitle,
-      data: activeWorkout
-    };
-
-    const newHistory = [newEntry, ...workoutHistory];
-    setWorkoutHistory(newHistory);
-    localStorage.setItem('eliteFitnessHistory', JSON.stringify(newHistory));
-    
-    setActiveWorkout({});
-    setActiveTab('history');
-  };
-
   return (
     <div style={styles.appContainer}>
-      {activeTab === 'workout' ? (
-        <div style={styles.contentScroll}>
-          <header style={styles.header}>
-            <div style={{ flex: 1 }}>
-              <input 
-                style={styles.workoutTitleInput} 
-                value={workoutTitle} 
-                onChange={(e) => setWorkoutTitle(e.target.value)} 
-              />
-              <p style={styles.timerText}>Tracking via Local Encryption</p>
-            </div>
-            <button onClick={finishWorkout} style={styles.finishButton}>Complete</button>
-          </header>
-
-          {Object.entries(EXERCISE_DATABASE).map(([category, exercises]) => (
-            <div key={category} style={styles.categorySection}>
-              <h2 style={styles.categoryTitle}>{category}</h2>
-              
-              {exercises.map(exercise => {
-                const sets = activeWorkout[exercise] || [{ reps: '', weight: '', completed: false }];
-                
-                return (
-                  <div key={exercise} style={styles.card}>
-                    <div style={styles.cardHeader}>
-                      <h3 style={styles.exerciseName}>{exercise}</h3>
-                    </div>
-
-                    <div style={styles.tableHeader}>
-                      <span style={{flex: 0.5, textAlign: 'center'}}>SET</span>
-                      <span style={{flex: 1, textAlign: 'center'}}>PREV</span>
-                      <span style={{flex: 1, textAlign: 'center'}}>KG</span>
-                      <span style={{flex: 1, textAlign: 'center'}}>REPS</span>
-                      <span style={{flex: 0.5, textAlign: 'center'}}>✓</span>
-                    </div>
-
-                    {sets.map((set, idx) => (
-                      <div key={idx} style={{
-                        ...styles.setRow, 
-                        backgroundColor: set.completed ? 'rgba(10, 132, 255, 0.1)' : 'transparent',
-                        borderLeft: set.completed ? '3px solid #0A84FF' : '3px solid transparent'
-                      }}>
-                        <span style={styles.setIndex}>{idx + 1}</span>
-                        <span style={styles.prevText}>-</span>
-                        <input 
-                          type="number" 
-                          placeholder="0" 
-                          value={set.weight}
-                          onChange={(e) => updateSet(exercise, idx, 'weight', e.target.value)}
-                          style={styles.inputField} 
-                        />
-                        <input 
-                          type="number" 
-                          placeholder="0" 
-                          value={set.reps}
-                          onChange={(e) => updateSet(exercise, idx, 'reps', e.target.value)}
-                          style={styles.inputField} 
-                        />
-                        <button 
-                          onClick={() => toggleSetCompletion(exercise, idx)}
-                          style={{
-                            ...styles.checkButton, 
-                            backgroundColor: set.completed ? '#0A84FF' : '#1C1C1E',
-                            color: set.completed ? '#FFFFFF' : '#48484A'
-                          }}
-                        >
-                          ✓
-                        </button>
-                      </div>
-                    ))}
-                    
-                    <button onClick={() => addSet(exercise)} style={styles.addSetButton}>
-                      + ADD SET
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+      {/* KHU VỰC ĐANG TẬP LUYỆN */}
+      <div style={styles.contentScroll}>
+        <div style={styles.topBar}>
+          <span style={{color: '#8E8E93', fontSize: '20px'}}>▼</span>
+          <span style={{color: '#8E8E93', fontSize: '20px'}}>⏱</span>
+          <span style={{color: '#8E8E93', fontSize: '20px'}}>⋮</span>
         </div>
-      ) : (
-        <div style={styles.contentScroll}>
-          <header style={styles.header}>
-            <h1 style={{margin: 0, fontSize: '24px', fontWeight: '700', color: '#FFFFFF'}}>Training Log</h1>
-          </header>
-          {workoutHistory.length === 0 ? (
-            <p style={{padding: '20px', color: '#8E8E93', textAlign: 'center'}}>No historical data established.</p>
-          ) : (
-            <div style={{padding: '15px'}}>
-              {workoutHistory.map(entry => (
-                <div key={entry.id} style={styles.historyCard}>
-                  <div style={styles.historyHeader}>
-                    <h3 style={{margin: 0, fontSize: '18px', color: '#FFFFFF'}}>{entry.title}</h3>
-                    <p style={{color: '#0A84FF', fontSize: '12px', margin: 0}}>{entry.date}</p>
-                  </div>
-                  {Object.entries(entry.data).map(([exName, exSets]) => {
-                    const completedSets = exSets.filter(s => s.completed).length;
-                    if (completedSets === 0) return null;
-                    return (
-                      <div key={exName} style={styles.historyDetail}>
-                        <span style={{color: '#0A84FF', fontWeight: 'bold'}}>{completedSets} SETS</span>
-                        <span style={{color: '#D1D1D6', marginLeft: '10px'}}>{exName}</span>
-                      </div>
-                    );
-                  })}
+        
+        <h1 style={styles.timerText}>{formatTime(seconds)}</h1>
+
+        {Object.entries(activeWorkout).map(([exercise, sets]) => (
+          <div key={exercise} style={styles.exerciseBlock}>
+            {/* Header Bài tập */}
+            <div style={styles.exerciseHeader}>
+              <div style={styles.exerciseTitleGroup}>
+                <div style={styles.thumbnailPlaceholder}>
+                  <span style={{color: '#8E8E93'}}>🏋️</span>
                 </div>
-              ))}
+                <div>
+                  <h3 style={styles.exerciseName}>{exercise}</h3>
+                  <p style={styles.notesText}>Notes...</p>
+                  <p style={styles.restTimerText}>⏱ Rest Timer: Off</p>
+                </div>
+              </div>
+              <span style={{color: '#8E8E93', fontSize: '20px'}}>⋮</span>
             </div>
-          )}
-        </div>
-      )}
 
+            {/* Tiêu đề Cột */}
+            <div style={styles.tableHeader}>
+              <span style={styles.setCol}>Set</span>
+              <span style={styles.prevCol}>Previous</span>
+              <span style={styles.inputColTitle}>kg</span>
+              <span style={styles.inputColTitle}>Reps</span>
+              <span style={styles.checkCol}>✓</span>
+            </div>
+
+            {/* Danh sách Sets */}
+            {sets.map((set, idx) => (
+              <div key={idx} style={{
+                ...styles.setRow, 
+                backgroundColor: set.completed ? 'rgba(52, 199, 89, 0.1)' : 'transparent'
+              }}>
+                <span style={styles.setCol}>{idx + 1}</span>
+                <span style={styles.prevCol}>—</span>
+                <div style={styles.inputCol}>
+                  <input 
+                    type="number" 
+                    placeholder="0" 
+                    value={set.weight}
+                    onChange={(e) => updateSet(exercise, idx, 'weight', e.target.value)}
+                    style={{...styles.inputField, borderBottom: set.completed ? 'none' : '2px solid #0A84FF'}} 
+                  />
+                </div>
+                <div style={styles.inputCol}>
+                  <input 
+                    type="number" 
+                    placeholder="0" 
+                    value={set.reps}
+                    onChange={(e) => updateSet(exercise, idx, 'reps', e.target.value)}
+                    style={styles.inputField} 
+                  />
+                </div>
+                <div style={styles.checkCol}>
+                  <button 
+                    onClick={() => toggleSetCompletion(exercise, idx)}
+                    style={{
+                      ...styles.checkButton, 
+                      backgroundColor: set.completed ? '#34C759' : '#1C1C1E',
+                      color: set.completed ? '#FFFFFF' : '#8E8E93'
+                    }}
+                  >
+                    ✓
+                  </button>
+                </div>
+              </div>
+            ))}
+            
+            <div style={{textAlign: 'center', marginTop: '10px'}}>
+              <span onClick={() => addSet(exercise)} style={styles.addSetText}>+ Add Set</span>
+            </div>
+          </div>
+        ))}
+
+        {/* Các Nút Hành Động Cuối Trang */}
+        <div style={styles.actionButtons}>
+          <button style={styles.addExerciseBtn}>Add Exercises</button>
+          <button style={styles.discardBtn}>Discard Workout</button>
+        </div>
+      </div>
+
+      {/* THANH ĐIỀU HƯỚNG BOTTOM NAV */}
       <nav style={styles.bottomNav}>
-        <button 
-          style={{...styles.navButton, color: activeTab === 'workout' ? '#FFFFFF' : '#48484A'}}
-          onClick={() => setActiveTab('workout')}
-        >
-          <span style={{...styles.navIndicator, backgroundColor: activeTab === 'workout' ? '#0A84FF' : 'transparent'}} />
-          TRAIN
-        </button>
-        <button 
-          style={{...styles.navButton, color: activeTab === 'history' ? '#FFFFFF' : '#48484A'}}
-          onClick={() => setActiveTab('history')}
-        >
-          <span style={{...styles.navIndicator, backgroundColor: activeTab === 'history' ? '#0A84FF' : 'transparent'}} />
-          HISTORY
-        </button>
+        {['Home', 'Explore', 'Workout', 'Progress', 'You'].map(tab => (
+          <div key={tab} style={styles.navItem} onClick={() => setActiveTab(tab.toLowerCase())}>
+            <span style={{...styles.navIcon, color: tab === 'Workout' ? '#FFFFFF' : '#8E8E93'}}>
+              {tab === 'Workout' ? '➕' : '○'}
+            </span>
+            <span style={{...styles.navText, color: tab === 'Workout' ? '#FFFFFF' : '#8E8E93'}}>
+              {tab}
+            </span>
+          </div>
+        ))}
       </nav>
     </div>
   );
 }
 
-// Global Gym Premium UI/UX Design System
+// BỘ ĐỊNH DẠNG CSS THEO CHUẨN LYFTA APP
 const styles = {
   appContainer: {
     display: 'flex', flexDirection: 'column', height: '100vh', 
-    backgroundColor: '#000000', // Deep Obsidian
-    color: '#FFFFFF',
+    backgroundColor: '#000000', color: '#FFFFFF',
     fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif'
   },
   contentScroll: {
-    flex: 1, overflowY: 'auto', paddingBottom: '90px'
+    flex: 1, overflowY: 'auto', paddingBottom: '100px'
   },
-  header: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-    padding: '20px 20px 15px 20px', backgroundColor: 'rgba(0, 0, 0, 0.85)', 
-    backdropFilter: 'blur(10px)', borderBottom: '1px solid #1C1C1E', 
-    position: 'sticky', top: 0, zIndex: 10
-  },
-  workoutTitleInput: {
-    fontSize: '24px', fontWeight: '700', color: '#FFFFFF', backgroundColor: 'transparent',
-    border: 'none', outline: 'none', width: '100%', letterSpacing: '-0.5px'
+  topBar: {
+    display: 'flex', justifyContent: 'space-between', padding: '15px 20px', alignItems: 'center'
   },
   timerText: {
-    fontSize: '12px', color: '#8E8E93', margin: '4px 0 0 0', textTransform: 'uppercase', letterSpacing: '1px'
+    fontSize: '48px', fontWeight: 'bold', textAlign: 'center', margin: '0 0 30px 0', letterSpacing: '2px'
   },
-  finishButton: {
-    backgroundColor: '#0A84FF', color: '#FFFFFF', border: 'none', borderRadius: '8px', 
-    padding: '10px 24px', fontSize: '14px', fontWeight: '700', cursor: 'pointer',
-    letterSpacing: '0.5px', textTransform: 'uppercase'
-  },
-  categorySection: {
-    padding: '20px 15px 0 15px'
-  },
-  categoryTitle: {
-    fontSize: '14px', color: '#0A84FF', textTransform: 'uppercase', 
-    letterSpacing: '2px', marginBottom: '15px', marginLeft: '5px', fontWeight: '600'
-  },
-  card: {
-    backgroundColor: '#0A0A0A', border: '1px solid #1C1C1E', borderRadius: '12px', 
-    padding: '20px', marginBottom: '20px'
-  },
-  cardHeader: {
+  exerciseBlock: {
+    padding: '0 20px 30px 20px',
+    borderBottom: '1px solid #1C1C1E',
     marginBottom: '20px'
   },
+  exerciseHeader: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px'
+  },
+  exerciseTitleGroup: {
+    display: 'flex', gap: '15px'
+  },
+  thumbnailPlaceholder: {
+    width: '45px', height: '45px', backgroundColor: '#1C1C1E', borderRadius: '8px',
+    display: 'flex', justifyContent: 'center', alignItems: 'center'
+  },
   exerciseName: {
-    margin: 0, fontSize: '18px', fontWeight: '600', color: '#FFFFFF', letterSpacing: '-0.3px'
+    margin: '0 0 4px 0', fontSize: '18px', fontWeight: 'bold', letterSpacing: '-0.5px'
+  },
+  notesText: {
+    margin: 0, color: '#8E8E93', fontSize: '14px', marginBottom: '4px'
+  },
+  restTimerText: {
+    margin: 0, color: '#8E8E93', fontSize: '14px', display: 'flex', alignItems: 'center'
   },
   tableHeader: {
-    display: 'flex', fontSize: '11px', color: '#8E8E93', fontWeight: '600', 
-    marginBottom: '15px', letterSpacing: '1px'
+    display: 'flex', color: '#8E8E93', fontSize: '13px', fontWeight: '600', marginBottom: '10px'
   },
   setRow: {
-    display: 'flex', alignItems: 'center', marginBottom: '10px', padding: '6px 0', 
-    borderRadius: '6px', transition: 'all 0.3s ease'
+    display: 'flex', alignItems: 'center', marginBottom: '8px', padding: '4px 0', borderRadius: '8px'
   },
-  setIndex: {
-    flex: 0.5, textAlign: 'center', fontWeight: '600', color: '#8E8E93'
-  },
-  prevText: {
-    flex: 1, textAlign: 'center', color: '#48484A', fontSize: '14px'
-  },
+  setCol: { flex: 0.5, textAlign: 'center', fontWeight: 'bold', color: '#8E8E93' },
+  prevCol: { flex: 1, textAlign: 'center', color: '#8E8E93', fontSize: '14px' },
+  inputColTitle: { flex: 1, textAlign: 'center' },
+  inputCol: { flex: 1, margin: '0 5px' },
+  checkCol: { flex: 0.5, display: 'flex', justifyContent: 'center' },
   inputField: {
-    flex: 1, backgroundColor: '#1C1C1E', border: 'none', borderRadius: '6px', color: '#FFFFFF',
-    padding: '12px 10px', margin: '0 4px', textAlign: 'center', fontSize: '16px', fontWeight: '600'
+    width: '100%', backgroundColor: '#1C1C1E', color: '#FFFFFF', border: 'none', borderRadius: '8px', 
+    padding: '12px 0', textAlign: 'center', fontSize: '18px', fontWeight: 'bold', outline: 'none'
   },
   checkButton: {
-    flex: 0.5, height: '40px', border: 'none', borderRadius: '6px', 
-    fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', 
-    alignItems: 'center', transition: 'background-color 0.2s ease'
+    width: '34px', height: '34px', borderRadius: '50%', border: 'none', 
+    display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer',
+    fontSize: '16px', fontWeight: 'bold', transition: 'all 0.2s ease'
   },
-  addSetButton: {
-    width: '100%', marginTop: '15px', padding: '12px', backgroundColor: 'transparent', 
-    border: '1px dashed #2C2C2E', borderRadius: '8px', color: '#0A84FF', 
-    fontSize: '13px', fontWeight: '700', cursor: 'pointer', letterSpacing: '1px'
+  addSetText: {
+    color: '#8E8E93', fontSize: '15px', fontWeight: '600', cursor: 'pointer', padding: '10px'
   },
-  historyCard: {
-    backgroundColor: '#0A0A0A', border: '1px solid #1C1C1E', borderRadius: '12px', 
-    padding: '20px', marginBottom: '15px'
+  actionButtons: {
+    padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '15px'
   },
-  historyHeader: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    borderBottom: '1px solid #1C1C1E', paddingBottom: '15px', marginBottom: '15px'
+  addExerciseBtn: {
+    backgroundColor: '#FFFFFF', color: '#000000', border: 'none', borderRadius: '30px', 
+    padding: '18px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer'
   },
-  historyDetail: {
-    fontSize: '14px', padding: '8px 0', display: 'flex', alignItems: 'center'
+  discardBtn: {
+    backgroundColor: 'transparent', color: '#FF453A', border: 'none', 
+    fontSize: '16px', fontWeight: '600', cursor: 'pointer'
   },
   bottomNav: {
-    display: 'flex', justifyContent: 'space-around', padding: '10px 0 25px 0', 
-    backgroundColor: 'rgba(0, 0, 0, 0.9)', backdropFilter: 'blur(10px)',
-    borderTop: '1px solid #1C1C1E', position: 'fixed', bottom: 0, width: '100%'
+    display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '10px 0 25px 0', 
+    backgroundColor: '#000000', borderTop: '1px solid #1C1C1E', position: 'fixed', bottom: 0, width: '100%'
   },
-  navButton: {
-    backgroundColor: 'transparent', border: 'none', fontSize: '11px', 
-    fontWeight: '700', cursor: 'pointer', letterSpacing: '1.5px', 
-    display: 'flex', flexDirection: 'column', alignItems: 'center'
+  navItem: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer'
   },
-  navIndicator: {
-    width: '4px', height: '4px', borderRadius: '50%', marginBottom: '6px'
-  }
+  navIcon: { fontSize: '22px' },
+  navText: { fontSize: '11px', fontWeight: '500' }
 };
