@@ -122,7 +122,26 @@ export default function App() {
 
   const addSet = (exercise) => {
     const updated = { ...activeWorkout };
-    updated[exercise].push({ reps: '', weight: '', completed: false });
+    const currentSets = updated[exercise];
+    
+    // Khởi tạo giá trị rỗng mặc định
+    let inheritedWeight = '';
+    let inheritedReps = '';
+    
+    // Nếu đã có set trước đó, lấy dữ liệu (kg và reps) của set cuối cùng
+    if (currentSets.length > 0) {
+      const lastSet = currentSets[currentSets.length - 1];
+      inheritedWeight = lastSet.weight;
+      inheritedReps = lastSet.reps;
+    }
+
+    // Thêm set mới với dữ liệu được kế thừa
+    currentSets.push({ 
+      reps: inheritedReps, 
+      weight: inheritedWeight, 
+      completed: false 
+    });
+    
     setActiveWorkout(updated);
   };
 
