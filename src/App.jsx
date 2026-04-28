@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, onSnapshot, addDoc } from "firebase/firestore";
+import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc } from "firebase/firestore";
 
 // 1. YOUR FIREBASE CONFIGURATION
 // Replace this with the config from your Firebase Console
@@ -24,19 +24,20 @@ const EXERCISE_DATABASE = {
   "Chest": ["Bench Press", "Incline Dumbbell Press", "Cable Crossovers", "Dips", "Low Incline Dumbbell Press", "Flat Dumbbell Fly", "Deficit Push-up"],
   "Back": ["Barbell Deadlift", "Pull-ups", "Lat Pulldowns", "Barbell Row", "Lat Prayer", "Deficit Barbell Row"],
   "Shoulders": ["Overhead Press", "Lateral Raises", "Arnold Press", "Face Pulls", "Seated Lateral Raise", "Super ROM Lateral Raise"],
-  "Legs": ["Barbell Squat", "High Bar Squat", "Hack Squat", "Leg Press", "Reverse Nordic", "RDL", "Stiff Legged Deadlift", "Seated/Lying Leg Curl", "Calf Raises"],
-  "Arms": ["Bicep Curls", "Triceps Pushdown", "Skull Crushers", "Hammer Curls", "Overhead Extension", "Dip Machine", "Superman Cable Curl"],
+  "Legs": ["Barbell Squat", "High Bar Squat", "Front Squat", "Goblet Squat", "Hack Squat", "Leg Press", "Reverse Nordic", "Sissy Squat", "Leg Extensions", "Bulgarian Split Squat", "Front Foot Elevated Smith Lunge", "Seated Machine Adductor", "Romanian Deadlift (RDL)", "Stiff Legged Deadlift", "Single-Leg RDL", "Good Mornings", "Seated/Lying Leg Curl", "Glute-Ham Raise (GHR)", "Nordic Hamstring Curl", "Glute Thrust Machine", "Barbell Hip Thrust", "Sit Back Squat", "Deficit Reverse Lunge", "Cable Glute Kickbacks", "Weighted Step-Ups", "Seated Machine Abductor", "Calf Raises", "Standing Calf Raise", "Seated Calf Raise", "Tibialis Raise"],
+  "Arms": ["Bicep Curls", "Triceps Pushdown", "Skull Crushers", "Hammer Curls", "Overhead Extension", "Dip Machine", "Decline Dumbbell Curl", "Incline Dumbbell Curl", "Superman Cable Curl"],
   "Core": ["Hanging Leg Raises", "Cable Crunches", "Plank"]
 };
 
-// 3. MAIN APPLICATION COMPONENT
 export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  
   const [activeTab, setActiveTab] = useState('workout'); 
   const [workoutHistory, setWorkoutHistory] = useState([]);
+  
   const [activeWorkout, setActiveWorkout] = useState({});
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
@@ -51,7 +52,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // LOAD HISTORY FROM FIRESTORE
+  // FIRESTORE CLOUD SYNC
   useEffect(() => {
     if (user) {
       const historyQuery = query(collection(db, "users", user.uid, "history"), orderBy("timestamp", "desc"));
@@ -78,64 +79,99 @@ export default function App() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // WORKOUT CONTROLS
+  // --- NEW: WEEKLY CALENDAR LOGIC ---
+  const getCurrentWeek = () => {
+    const curr = new Date();
+    const first = curr.getDate() - curr.getDay() + (curr.getDay() === 0 ? -6 : 1); // Get Monday
+    const week = [];
+    for (let i = 0; i < 7; i++) {
+      let next = new Date(curr.setDate(first + i));
+      week.push({
+        dayName: next.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0), // M, T, W...
+        date: next.getDate(),
+        matchString: next.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), // e.g. "Apr 28"
+        isToday: new Date().getDate() === next.getDate()
+      });
+    }
+    return week;
+  };
+
+  // WORKOUT CONTROLLER FUNCTIONS
   const startWorkout = () => { setIsWorkoutActive(true); setSeconds(0); setActiveWorkout({}); };
+
+  const discardWorkout = () => {
+    if(window.confirm("Are you sure you want to discard this session? All progress will be lost.")) {
+      setIsWorkoutActive(false);
+      setActiveWorkout({});
+      setSeconds(0);
+    }
+  };
+
+  const addExerciseToWorkout = (exerciseName) => {
+    if (!activeWorkout[exerciseName]) {
+      setActiveWorkout(prev => ({ ...prev, [exerciseName]: [{ reps: '', weight: '', completed: false }] }));
+    }
+    setShowExerciseModal(false);
+  };
+
+  const updateSet = (exercise, setIndex, field, value) => {
+    const updated = { ...activeWorkout };
+    updated[exercise][setIndex][field] = value;
+    setActiveWorkout(updated);
+  };
+
+  const addSet = (exercise) => {
+    const updated = { ...activeWorkout };
+    updated[exercise].push({ reps: '', weight: '', completed: false });
+    setActiveWorkout(updated);
+  };
+
+  const toggleSetCompletion = (exercise, setIndex) => {
+    const updated = { ...activeWorkout };
+    updated[exercise][setIndex].completed = !updated[exercise][setIndex].completed;
+    setActiveWorkout(updated);
+  };
 
   const finishWorkout = async () => {
     if (Object.keys(activeWorkout).length === 0) return alert("Log data to proceed.");
-    
     try {
       await addDoc(collection(db, "users", user.uid, "history"), {
         timestamp: Date.now(),
         date: new Date().toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        matchDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), // Added for easy calendar matching
         duration: formatTime(seconds),
         data: activeWorkout
       });
       setIsWorkoutActive(false);
       setActiveWorkout({});
       setActiveTab('history');
-    } catch (e) {
-      alert("Error saving workout: " + e.message);
-    }
+    } catch (e) { alert("Error saving workout: " + e.message); }
   };
 
-  // AUTH HANDLERS
-  // AUTH HANDLERS
-  // AUTHENTICATION HANDLERS WITH STRICT VALIDATION
-  const handleAuth = async (type) => {
-    // 1. Sanitize the input
-    const sanitizedEmail = email.trim();
-
-    // 2. Prevent empty submissions
-    if (!sanitizedEmail) {
-      return alert("Validation Error: Please enter an email address.");
-    }
-
-    // 3. Regex format validation (ensures the structure is prefix@domain.suffix)
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(sanitizedEmail)) {
-      return alert("Validation Error: Please enter a formally valid email format.");
-    }
-
-    // 4. Firebase requires passwords to be at least 6 characters
-    if (!password || password.length < 6) {
-      return alert("Validation Error: Your password must be a minimum of 6 characters.");
-    }
-
-    // 5. Execute Firebase Authentication
-    try {
-      if (type === 'signup') {
-        await createUserWithEmailAndPassword(auth, sanitizedEmail, password);
-      } else {
-        await signInWithEmailAndPassword(auth, sanitizedEmail, password);
+  // --- NEW: DELETE HISTORY LOGIC ---
+  const deleteHistoryEntry = async (entryId) => {
+    if (window.confirm("Delete this workout from your cloud history? This cannot be undone.")) {
+      try {
+        await deleteDoc(doc(db, "users", user.uid, "history", entryId));
+      } catch (error) {
+        alert("Failed to delete: " + error.message);
       }
-    } catch (e) { 
-      // This will catch backend errors (e.g., "Email already in use" or "Wrong password")
-      alert("Firebase Protocol: " + e.message); 
     }
   };
 
-  // --- RENDER HELPERS ---
+  const handleAuth = async (type) => {
+    const sanitizedEmail = email.trim();
+    if (!sanitizedEmail) return alert("Please enter an email address.");
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(sanitizedEmail)) return alert("Please enter a formally valid email format.");
+    if (!password || password.length < 6) return alert("Password must be at least 6 characters.");
+
+    try {
+      if (type === 'signup') await createUserWithEmailAndPassword(auth, sanitizedEmail, password);
+      else await signInWithEmailAndPassword(auth, sanitizedEmail, password);
+    } catch (e) { alert("Firebase Protocol: " + e.message); }
+  };
+
   if (authLoading) return <div style={styles.appContainer}><p style={{padding: '50px'}}>Loading...</p></div>;
 
   if (!user) {
@@ -153,50 +189,146 @@ export default function App() {
   return (
     <div style={styles.appContainer}>
       <div style={styles.contentScroll}>
+        
+        {/* WORKOUT TAB */}
         {activeTab === 'workout' && (
           <div>
-            <div style={styles.topBar}>
-              <span style={{color: '#8E8E93', fontSize: '20px'}} onClick={() => setIsWorkoutActive(false)}>▼</span>
-              <span style={{color: '#0A84FF', fontWeight: 'bold'}} onClick={finishWorkout}>Finish</span>
-            </div>
-            <h1 style={styles.timerText}>{formatTime(seconds)}</h1>
             {!isWorkoutActive ? (
-              <button onClick={startWorkout} style={styles.mainBtn}>Start Workout</button>
+              <div style={{display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '50px 20px'}}>
+                <h2 style={{fontSize: '24px', marginBottom: '20px'}}>Ready to train?</h2>
+                <button onClick={startWorkout} style={styles.mainBtn}>Start an Empty Workout</button>
+              </div>
             ) : (
               <div>
-                {/* Exercise blocks and set management here (previous logic) */}
-                <button onClick={() => setShowExerciseModal(true)} style={styles.mainBtn}>+ Add Exercise</button>
+                <div style={styles.topBar}>
+                  <span style={{color: '#8E8E93', fontSize: '20px', cursor: 'pointer'}} onClick={discardWorkout}>▼</span>
+                  <span style={{color: '#0A84FF', fontWeight: 'bold', cursor: 'pointer', fontSize: '18px'}} onClick={finishWorkout}>Finish</span>
+                </div>
+                <h1 style={styles.timerText}>{formatTime(seconds)}</h1>
+
+                {Object.keys(activeWorkout).length === 0 ? (
+                  <p style={{textAlign: 'center', color: '#8E8E93', marginTop: '40px'}}>Tap below to add your first exercise.</p>
+                ) : (
+                  Object.entries(activeWorkout).map(([exercise, sets]) => (
+                    <div key={exercise} style={styles.exerciseBlock}>
+                      <div style={styles.exerciseHeader}><h3 style={styles.exerciseName}>{exercise}</h3></div>
+                      <div style={styles.tableHeader}>
+                        <span style={styles.setCol}>Set</span>
+                        <span style={styles.prevCol}>Previous</span>
+                        <span style={styles.inputColTitle}>kg</span>
+                        <span style={styles.inputColTitle}>Reps</span>
+                        <span style={styles.checkCol}>✓</span>
+                      </div>
+                      {sets.map((set, idx) => (
+                        <div key={idx} style={{...styles.setRow, backgroundColor: set.completed ? 'rgba(52, 199, 89, 0.15)' : 'transparent'}}>
+                          <span style={styles.setCol}>{idx + 1}</span>
+                          <span style={styles.prevCol}>—</span>
+                          <div style={styles.inputCol}><input type="number" placeholder="0" value={set.weight} onChange={(e) => updateSet(exercise, idx, 'weight', e.target.value)} style={styles.inputField} /></div>
+                          <div style={styles.inputCol}><input type="number" placeholder="0" value={set.reps} onChange={(e) => updateSet(exercise, idx, 'reps', e.target.value)} style={styles.inputField} /></div>
+                          <div style={styles.checkCol}><button onClick={() => toggleSetCompletion(exercise, idx)} style={{...styles.checkButton, backgroundColor: set.completed ? '#34C759' : '#2C2C2E', color: set.completed ? '#FFFFFF' : '#8E8E93'}}>✓</button></div>
+                        </div>
+                      ))}
+                      <div style={{textAlign: 'center', marginTop: '10px'}}><span onClick={() => addSet(exercise)} style={styles.addSetText}>+ Add Set</span></div>
+                    </div>
+                  ))
+                )}
+                
+                <div style={{padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px'}}>
+                  <button onClick={() => setShowExerciseModal(true)} style={styles.mainBtn}>+ Add Exercises</button>
+                  <button onClick={discardWorkout} style={styles.discardBtn}>Discard Workout</button>
+                </div>
               </div>
             )}
           </div>
         )}
 
+        {/* HISTORY TAB */}
         {activeTab === 'history' && (
           <div style={{padding: '20px'}}>
-            <h2 style={{fontSize: '24px', marginBottom: '20px'}}>History</h2>
-            {workoutHistory.map(entry => (
-              <div key={entry.id} style={styles.historyCard}>
-                <div style={styles.historyHeader}>
-                  <p>{entry.date}</p>
-                  <p style={{color: '#0A84FF'}}>{entry.duration}</p>
+            <h1 style={{fontSize: '28px', marginBottom: '20px'}}>Your Progress</h1>
+            
+            {/* WEEKLY CALENDAR WIDGET */}
+            <div style={styles.calendarContainer}>
+              {getCurrentWeek().map(dayInfo => {
+                const isWorkoutDay = workoutHistory.some(entry => entry.date.includes(dayInfo.matchString));
+                return (
+                  <div key={dayInfo.date} style={{
+                    ...styles.calendarDay, 
+                    backgroundColor: isWorkoutDay ? '#34C759' : '#1C1C1E',
+                    border: dayInfo.isToday ? '1px solid #0A84FF' : '1px solid transparent'
+                  }}>
+                    <span style={{fontSize: '10px', color: isWorkoutDay ? '#000' : '#8E8E93', fontWeight: 'bold'}}>{dayInfo.dayName}</span>
+                    <span style={{fontSize: '16px', color: isWorkoutDay ? '#000' : '#FFF', fontWeight: 'bold'}}>{dayInfo.date}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {workoutHistory.length === 0 ? <p style={{color: '#8E8E93', textAlign: 'center', marginTop: '40px'}}>No history available.</p> : 
+              workoutHistory.map(entry => (
+                <div key={entry.id} style={styles.historyCard}>
+                  <div style={styles.historyHeader}>
+                    <div>
+                      <p style={{margin: 0, fontWeight: 'bold', fontSize: '18px'}}>{entry.date}</p>
+                      <p style={{margin: '5px 0 0 0', color: '#0A84FF', fontWeight: 'bold', fontSize: '14px'}}>⏱ {entry.duration}</p>
+                    </div>
+                    {/* DELETE BUTTON */}
+                    <button onClick={() => deleteHistoryEntry(entry.id)} style={styles.deleteBtn}>Delete</button>
+                  </div>
+                  {Object.entries(entry.data).map(([exName, exSets]) => {
+                    const completedSets = exSets.filter(s => s.completed).length;
+                    if (completedSets === 0) return null;
+                    return (
+                      <div key={exName} style={styles.historyDetail}>
+                        <span style={{color: '#8E8E93', width: '60px'}}>{completedSets} sets</span>
+                        <span>{exName}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-            ))}
+              ))
+            }
           </div>
         )}
 
+        {/* PROFILE TAB */}
         {activeTab === 'you' && (
           <div style={{padding: '20px', textAlign: 'center'}}>
             <h2 style={{fontSize: '24px', marginBottom: '40px'}}>Profile</h2>
             <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '20px'}}>
-              <p style={{color: '#8E8E93'}}>Logged in as:</p>
-              <p style={{fontSize: '18px', fontWeight: 'bold'}}>{user.email}</p>
+              <p style={{color: '#8E8E93', margin: '0 0 10px 0'}}>Logged in as:</p>
+              <p style={{fontSize: '18px', fontWeight: 'bold', margin: 0}}>{user.email}</p>
             </div>
             <button onClick={() => signOut(auth)} style={{...styles.authButton, backgroundColor: '#FF453A'}}>Sign Out</button>
           </div>
         )}
       </div>
 
+      {/* EXERCISE MODAL */}
+      {showExerciseModal && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalHeader}>
+            <span onClick={() => setShowExerciseModal(false)} style={{fontSize: '24px', cursor: 'pointer', color: '#8E8E93'}}>✕</span>
+            <h2 style={{margin: 0, fontSize: '18px'}}>Add Exercises</h2>
+            <span style={{width: '24px'}}></span>
+          </div>
+          <div style={{overflowY: 'auto', paddingBottom: '50px'}}>
+            {Object.entries(EXERCISE_DATABASE).map(([category, exercises]) => (
+              <div key={category} style={{padding: '10px 20px'}}>
+                <h3 style={{color: '#0A84FF', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '10px'}}>{category}</h3>
+                {exercises.map(ex => (
+                  <div key={ex} onClick={() => addExerciseToWorkout(ex)} style={styles.exerciseListItem}>
+                    <span style={{fontSize: '16px'}}>{ex}</span>
+                    <span style={{color: '#0A84FF', fontSize: '24px', fontWeight: '300'}}>+</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* BOTTOM NAV */}
       <nav style={styles.bottomNav}>
         {['Workout', 'History', 'You'].map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab.toLowerCase())} 
@@ -209,17 +341,38 @@ export default function App() {
   );
 }
 
-// 4. THE DESIGN SYSTEM
+// 3. DESIGN SYSTEM
 const styles = {
   appContainer: { display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#000000', color: '#FFFFFF', fontFamily: '-apple-system, sans-serif' },
   contentScroll: { flex: 1, overflowY: 'auto', paddingBottom: '90px' },
   authInput: { width: '100%', padding: '15px', marginBottom: '15px', backgroundColor: '#1C1C1E', color: '#FFF', border: 'none', borderRadius: '8px', fontSize: '16px' },
   authButton: { width: '100%', padding: '15px', backgroundColor: '#0A84FF', color: '#FFF', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' },
-  timerText: { fontSize: '48px', fontWeight: 'bold', textAlign: 'center', margin: '30px 0' },
-  topBar: { display: 'flex', justifyContent: 'space-between', padding: '20px' },
-  mainBtn: { width: '90%', margin: '0 5% 20px 5%', padding: '15px', backgroundColor: '#FFF', color: '#000', borderRadius: '30px', fontWeight: 'bold', border: 'none' },
-  bottomNav: { display: 'flex', justifyContent: 'space-around', padding: '15px 0 30px 0', backgroundColor: '#000', borderTop: '1px solid #1C1C1E', position: 'fixed', bottom: 0, width: '100%' },
-  navBtn: { backgroundColor: 'transparent', border: 'none', fontWeight: '600', fontSize: '12px', textTransform: 'uppercase' },
-  historyCard: { backgroundColor: '#1C1C1E', padding: '15px', borderRadius: '12px', marginBottom: '10px' },
-  historyHeader: { display: 'flex', justifyContent: 'space-between', fontSize: '14px' }
+  timerText: { fontSize: '48px', fontWeight: 'bold', textAlign: 'center', margin: '0 0 30px 0' },
+  topBar: { display: 'flex', justifyContent: 'space-between', padding: '20px', alignItems: 'center' },
+  mainBtn: { width: '100%', padding: '16px', backgroundColor: '#FFF', color: '#000', borderRadius: '30px', fontWeight: 'bold', border: 'none', fontSize: '16px', cursor: 'pointer' },
+  discardBtn: { width: '100%', padding: '16px', backgroundColor: '#1C1C1E', color: '#FF453A', borderRadius: '30px', fontWeight: 'bold', border: 'none', fontSize: '16px', cursor: 'pointer' },
+  deleteBtn: { backgroundColor: 'rgba(255, 69, 58, 0.1)', color: '#FF453A', border: 'none', borderRadius: '6px', padding: '8px 12px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' },
+  calendarContainer: { display: 'flex', justifyContent: 'space-between', backgroundColor: '#0A0A0A', padding: '15px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #1C1C1E' },
+  calendarDay: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '40px', height: '55px', borderRadius: '8px' },
+  bottomNav: { display: 'flex', justifyContent: 'space-around', padding: '15px 0 25px 0', backgroundColor: '#000', borderTop: '1px solid #1C1C1E', position: 'fixed', bottom: 0, width: '100%', zIndex: 50 },
+  navBtn: { backgroundColor: 'transparent', border: 'none', fontWeight: '600', fontSize: '12px', textTransform: 'uppercase', cursor: 'pointer' },
+  historyCard: { backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '15px' },
+  historyHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #2C2C2E', paddingBottom: '15px', marginBottom: '15px' },
+  historyDetail: { display: 'flex', fontSize: '15px', padding: '6px 0' },
+  exerciseBlock: { padding: '0 20px 20px 20px', borderBottom: '1px solid #1C1C1E', marginBottom: '20px' },
+  exerciseHeader: { marginBottom: '15px' },
+  exerciseName: { margin: 0, fontSize: '18px', fontWeight: 'bold' },
+  tableHeader: { display: 'flex', color: '#8E8E93', fontSize: '13px', fontWeight: '600', marginBottom: '10px' },
+  setRow: { display: 'flex', alignItems: 'center', marginBottom: '6px', padding: '4px 0', borderRadius: '8px' },
+  setCol: { flex: 0.5, textAlign: 'center', fontWeight: 'bold', color: '#8E8E93' },
+  prevCol: { flex: 1, textAlign: 'center', color: '#8E8E93', fontSize: '14px' },
+  inputColTitle: { flex: 1, textAlign: 'center' },
+  inputCol: { flex: 1, margin: '0 5px' },
+  checkCol: { flex: 0.5, display: 'flex', justifyContent: 'center' },
+  inputField: { width: '100%', backgroundColor: '#1C1C1E', color: '#FFFFFF', border: 'none', borderRadius: '6px', padding: '10px 0', textAlign: 'center', fontSize: '16px', fontWeight: 'bold', outline: 'none' },
+  checkButton: { width: '32px', height: '32px', borderRadius: '50%', border: 'none', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' },
+  addSetText: { color: '#8E8E93', fontSize: '15px', fontWeight: '600', cursor: 'pointer', padding: '10px' },
+  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000000', zIndex: 100, display: 'flex', flexDirection: 'column' },
+  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', borderBottom: '1px solid #1C1C1E', backgroundColor: '#0A0A0A' },
+  exerciseListItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid #1C1C1E', cursor: 'pointer' }
 };
