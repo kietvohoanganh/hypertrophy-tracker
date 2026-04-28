@@ -260,10 +260,30 @@ export default function App() {
           </div>
         )}
 
-        {/* HISTORY TAB WITH CALENDAR AND FILTERING */}
+        {/* HISTORY TAB WITH CHRONOLOGICAL NAVIGATION */}
         {activeTab === 'history' && (
           <div style={{padding: '20px'}}>
             <h1 style={{fontSize: '28px', marginBottom: '20px'}}>Your Progress</h1>
+            
+            {/* NAVIGATION CONTROLS */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <button 
+                onClick={() => { setWeekOffset(w => w - 1); setSelectedDate(null); }} 
+                style={styles.navArrow}
+              >
+                ◀ Past
+              </button>
+              <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#8E8E93', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                {weekOffset === 0 ? "Current Week" : `${Math.abs(weekOffset)} Week(s) Ago`}
+              </span>
+              <button 
+                onClick={() => { setWeekOffset(w => w + 1); setSelectedDate(null); }} 
+                disabled={weekOffset === 0} 
+                style={{ ...styles.navArrow, opacity: weekOffset === 0 ? 0.2 : 1 }}
+              >
+                Future ▶
+              </button>
+            </div>
             
             <div style={styles.calendarContainer}>
               {getCurrentWeek().map(dayInfo => {
@@ -402,5 +422,6 @@ const styles = {
   addSetText: { color: '#8E8E93', fontSize: '15px', fontWeight: '600', cursor: 'pointer', padding: '10px' },
   modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000000', zIndex: 100, display: 'flex', flexDirection: 'column' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', borderBottom: '1px solid #1C1C1E', backgroundColor: '#0A0A0A' },
-  exerciseListItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid #1C1C1E', cursor: 'pointer' }
+  exerciseListItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid #1C1C1E', cursor: 'pointer' },
+  navArrow: { backgroundColor: 'transparent', color: '#0A84FF', border: 'none', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', transition: 'opacity 0.2s' }
 };
