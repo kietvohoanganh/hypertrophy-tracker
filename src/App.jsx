@@ -30,6 +30,83 @@ const EXERCISE_DATABASE = {
 };
 
 export default function App() {
+  const [selectedDate, setSelectedDate] = useState(null);
+
+// ... (Các phần code khác giữ nguyên)
+
+{/* HISTORY TAB */}
+{activeTab === 'history' && (
+  <div style={{padding: '20px'}}>
+    <h1 style={{fontSize: '28px', marginBottom: '20px'}}>Your Progress</h1>
+    
+    {/* WEEKLY CALENDAR WIDGET (Đã nâng cấp tính năng Click) */}
+    <div style={styles.calendarContainer}>
+      {getCurrentWeek().map(dayInfo => {
+        const isWorkoutDay = workoutHistory.some(entry => entry.date.includes(dayInfo.matchString));
+        const isSelected = selectedDate === dayInfo.matchString;
+
+        return (
+          <div 
+            key={dayInfo.date} 
+            onClick={() => setSelectedDate(isSelected ? null : dayInfo.matchString)} // Click để lọc, click lại để bỏ lọc
+            style={{
+              ...styles.calendarDay, 
+              backgroundColor: isSelected ? '#0A84FF' : (isWorkoutDay ? '#34C759' : '#1C1C1E'),
+              border: dayInfo.isToday ? '1px solid #0A84FF' : '1px solid transparent',
+              cursor: 'pointer',
+              transform: isSelected ? 'scale(1.1)' : 'scale(1)',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <span style={{fontSize: '10px', color: (isSelected || isWorkoutDay) ? '#000' : '#8E8E93', fontWeight: 'bold'}}>{dayInfo.dayName}</span>
+            <span style={{fontSize: '16px', color: (isSelected || isWorkoutDay) ? '#000' : '#FFF', fontWeight: 'bold'}}>{dayInfo.date}</span>
+          </div>
+        );
+      })}
+    </div>
+
+    {/* Nút xóa bộ lọc nếu đang chọn một ngày */}
+    {selectedDate && (
+      <p style={{color: '#0A84FF', textAlign: 'center', marginBottom: '15px'}} onClick={() => setSelectedDate(null)}>
+        Showing workouts for {selectedDate} (Tap to show all)
+      </p>
+    )}
+
+    {/* DANH SÁCH LỊCH SỬ (Đã thêm bộ lọc) */}
+    {workoutHistory
+      .filter(entry => !selectedDate || entry.date.includes(selectedDate)) // Chỉ hiện ngày được chọn
+      .length === 0 ? (
+        <p style={{color: '#8E8E93', textAlign: 'center', marginTop: '40px'}}>
+          {selectedDate ? `No workouts recorded on ${selectedDate}` : "No history available."}
+        </p>
+      ) : (
+        workoutHistory
+          .filter(entry => !selectedDate || entry.date.includes(selectedDate))
+          .map(entry => (
+            <div key={entry.id} style={styles.historyCard}>
+              <div style={styles.historyHeader}>
+                <div>
+                  <p style={{margin: 0, fontWeight: 'bold', fontSize: '18px'}}>{entry.date}</p>
+                  <p style={{margin: '5px 0 0 0', color: '#0A84FF', fontWeight: 'bold', fontSize: '14px'}}>⏱ {entry.duration}</p>
+                </div>
+                <button onClick={() => deleteHistoryEntry(entry.id)} style={styles.deleteBtn}>Delete</button>
+              </div>
+              {Object.entries(entry.data).map(([exName, exSets]) => {
+                const completedSets = exSets.filter(s => s.completed).length;
+                if (completedSets === 0) return null;
+                return (
+                  <div key={exName} style={styles.historyDetail}>
+                    <span style={{color: '#8E8E93', width: '60px'}}>{completedSets} sets</span>
+                    <span>{exName}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ))
+      )
+    }
+  </div>
+)}
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [email, setEmail] = useState('');
