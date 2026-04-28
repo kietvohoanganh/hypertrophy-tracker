@@ -323,13 +323,21 @@ export default function App() {
                     </div>
                     <button onClick={() => deleteHistoryEntry(entry.id)} style={styles.deleteBtn}>Delete</button>
                   </div>
+                  {/* CHI TIẾT TỪNG BÀI TẬP VÀ SET */}
                   {Object.entries(entry.data).map(([exName, exSets]) => {
-                    const completedSets = exSets.filter(s => s.completed).length;
-                    if (completedSets === 0) return null;
+                    // Lọc ra những set đã tick hoàn thành
+                    const completedSets = exSets.filter(s => s.completed);
+                    if (completedSets.length === 0) return null;
+                    
                     return (
-                      <div key={exName} style={styles.historyDetail}>
-                        <span style={{color: '#8E8E93', width: '60px'}}>{completedSets} sets</span>
-                        <span>{exName}</span>
+                      <div key={exName} style={styles.historyExerciseBlock}>
+                        <p style={styles.historyExerciseTitle}>{exName}</p>
+                        {completedSets.map((set, idx) => (
+                          <div key={idx} style={styles.historySetRow}>
+                            <span style={{fontWeight: 'bold'}}>Set {idx + 1}</span>
+                            <span>{set.weight} kg × {set.reps} reps</span>
+                          </div>
+                        ))}
                       </div>
                     );
                   })}
