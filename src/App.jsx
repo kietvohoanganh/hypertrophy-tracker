@@ -100,11 +100,20 @@ export default function App() {
   };
 
   // AUTH HANDLERS
+  // AUTH HANDLERS
   const handleAuth = async (type) => {
     try {
-      if (type === 'signup') await createUserWithEmailAndPassword(auth, email, password);
-      else await signInWithEmailAndPassword(auth, email, password);
-    } catch (e) { alert(e.message); }
+      // Sanitize the email string to prevent 'auth/invalid-email' errors
+      const sanitizedEmail = email.trim(); 
+      
+      if (type === 'signup') {
+        await createUserWithEmailAndPassword(auth, sanitizedEmail, password);
+      } else {
+        await signInWithEmailAndPassword(auth, sanitizedEmail, password);
+      }
+    } catch (e) { 
+      alert(e.message); 
+    }
   };
 
   // --- RENDER HELPERS ---
