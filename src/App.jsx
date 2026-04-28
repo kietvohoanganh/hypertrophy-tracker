@@ -30,6 +30,14 @@ const EXERCISE_DATABASE = {
 };
 
 export default function App() {
+  
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  
+  const [activeTab, setActiveTab] = useState('workout'); 
+  const [workoutHistory, setWorkoutHistory] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
 
 // ... (Các phần code khác giữ nguyên)
@@ -107,14 +115,6 @@ export default function App() {
     }
   </div>
 )}
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  
-  const [activeTab, setActiveTab] = useState('workout'); 
-  const [workoutHistory, setWorkoutHistory] = useState([]);
-  
   const [activeWorkout, setActiveWorkout] = useState({});
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
