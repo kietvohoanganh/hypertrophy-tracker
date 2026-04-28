@@ -30,7 +30,7 @@ const EXERCISE_DATABASE = {
 };
 
 export default function App() {
-  
+  // --- STATE MANAGEMENT ---
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [email, setEmail] = useState('');
@@ -38,89 +38,14 @@ export default function App() {
   
   const [activeTab, setActiveTab] = useState('workout'); 
   const [workoutHistory, setWorkoutHistory] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(null);
-
-// ... (Các phần code khác giữ nguyên)
-
-{/* HISTORY TAB */}
-{activeTab === 'history' && (
-  <div style={{padding: '20px'}}>
-    <h1 style={{fontSize: '28px', marginBottom: '20px'}}>Your Progress</h1>
-    
-    {/* WEEKLY CALENDAR WIDGET (Đã nâng cấp tính năng Click) */}
-    <div style={styles.calendarContainer}>
-      {getCurrentWeek().map(dayInfo => {
-        const isWorkoutDay = workoutHistory.some(entry => entry.date.includes(dayInfo.matchString));
-        const isSelected = selectedDate === dayInfo.matchString;
-
-        return (
-          <div 
-            key={dayInfo.date} 
-            onClick={() => setSelectedDate(isSelected ? null : dayInfo.matchString)} // Click để lọc, click lại để bỏ lọc
-            style={{
-              ...styles.calendarDay, 
-              backgroundColor: isSelected ? '#0A84FF' : (isWorkoutDay ? '#34C759' : '#1C1C1E'),
-              border: dayInfo.isToday ? '1px solid #0A84FF' : '1px solid transparent',
-              cursor: 'pointer',
-              transform: isSelected ? 'scale(1.1)' : 'scale(1)',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            <span style={{fontSize: '10px', color: (isSelected || isWorkoutDay) ? '#000' : '#8E8E93', fontWeight: 'bold'}}>{dayInfo.dayName}</span>
-            <span style={{fontSize: '16px', color: (isSelected || isWorkoutDay) ? '#000' : '#FFF', fontWeight: 'bold'}}>{dayInfo.date}</span>
-          </div>
-        );
-      })}
-    </div>
-
-    {/* Nút xóa bộ lọc nếu đang chọn một ngày */}
-    {selectedDate && (
-      <p style={{color: '#0A84FF', textAlign: 'center', marginBottom: '15px'}} onClick={() => setSelectedDate(null)}>
-        Showing workouts for {selectedDate} (Tap to show all)
-      </p>
-    )}
-
-    {/* DANH SÁCH LỊCH SỬ (Đã thêm bộ lọc) */}
-    {workoutHistory
-      .filter(entry => !selectedDate || entry.date.includes(selectedDate)) // Chỉ hiện ngày được chọn
-      .length === 0 ? (
-        <p style={{color: '#8E8E93', textAlign: 'center', marginTop: '40px'}}>
-          {selectedDate ? `No workouts recorded on ${selectedDate}` : "No history available."}
-        </p>
-      ) : (
-        workoutHistory
-          .filter(entry => !selectedDate || entry.date.includes(selectedDate))
-          .map(entry => (
-            <div key={entry.id} style={styles.historyCard}>
-              <div style={styles.historyHeader}>
-                <div>
-                  <p style={{margin: 0, fontWeight: 'bold', fontSize: '18px'}}>{entry.date}</p>
-                  <p style={{margin: '5px 0 0 0', color: '#0A84FF', fontWeight: 'bold', fontSize: '14px'}}>⏱ {entry.duration}</p>
-                </div>
-                <button onClick={() => deleteHistoryEntry(entry.id)} style={styles.deleteBtn}>Delete</button>
-              </div>
-              {Object.entries(entry.data).map(([exName, exSets]) => {
-                const completedSets = exSets.filter(s => s.completed).length;
-                if (completedSets === 0) return null;
-                return (
-                  <div key={exName} style={styles.historyDetail}>
-                    <span style={{color: '#8E8E93', width: '60px'}}>{completedSets} sets</span>
-                    <span>{exName}</span>
-                  </div>
-                );
-              })}
-            </div>
-          ))
-      )
-    }
-  </div>
-)}
+  const [selectedDate, setSelectedDate] = useState(null); // The history filter state
+  
   const [activeWorkout, setActiveWorkout] = useState({});
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [seconds, setSeconds] = useState(0);
 
-  // AUTHENTICATION OBSERVER
+  // --- USE EFFECTS ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -129,7 +54,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // FIRESTORE CLOUD SYNC
   useEffect(() => {
     if (user) {
       const historyQuery = query(collection(db, "users", user.uid, "history"), orderBy("timestamp", "desc"));
@@ -141,7 +65,6 @@ export default function App() {
     }
   }, [user]);
 
-  // TIMER LOGIC
   useEffect(() => {
     let interval = null;
     if (isWorkoutActive) {
@@ -150,37 +73,35 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isWorkoutActive]);
 
+  // --- HELPER FUNCTIONS ---
   const formatTime = (totalSeconds) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // --- NEW: WEEKLY CALENDAR LOGIC ---
   const getCurrentWeek = () => {
     const curr = new Date();
-    const first = curr.getDate() - curr.getDay() + (curr.getDay() === 0 ? -6 : 1); // Get Monday
+    const first = curr.getDate() - curr.getDay() + (curr.getDay() === 0 ? -6 : 1); 
     const week = [];
     for (let i = 0; i < 7; i++) {
       let next = new Date(curr.setDate(first + i));
       week.push({
-        dayName: next.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0), // M, T, W...
+        dayName: next.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0), 
         date: next.getDate(),
-        matchString: next.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), // e.g. "Apr 28"
+        matchString: next.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 
         isToday: new Date().getDate() === next.getDate()
       });
     }
     return week;
   };
 
-  // WORKOUT CONTROLLER FUNCTIONS
+  // --- WORKOUT LOGIC ---
   const startWorkout = () => { setIsWorkoutActive(true); setSeconds(0); setActiveWorkout({}); };
 
   const discardWorkout = () => {
     if(window.confirm("Are you sure you want to discard this session? All progress will be lost.")) {
-      setIsWorkoutActive(false);
-      setActiveWorkout({});
-      setSeconds(0);
+      setIsWorkoutActive(false); setActiveWorkout({}); setSeconds(0);
     }
   };
 
@@ -197,28 +118,21 @@ export default function App() {
     setActiveWorkout(updated);
   };
 
+  // The optimized addSet with auto-fill logic
   const addSet = (exercise) => {
     const updated = { ...activeWorkout };
     const currentSets = updated[exercise];
     
-    // Khởi tạo giá trị rỗng mặc định
     let inheritedWeight = '';
     let inheritedReps = '';
     
-    // Nếu đã có set trước đó, lấy dữ liệu (kg và reps) của set cuối cùng
     if (currentSets.length > 0) {
       const lastSet = currentSets[currentSets.length - 1];
       inheritedWeight = lastSet.weight;
       inheritedReps = lastSet.reps;
     }
 
-    // Thêm set mới với dữ liệu được kế thừa
-    currentSets.push({ 
-      reps: inheritedReps, 
-      weight: inheritedWeight, 
-      completed: false 
-    });
-    
+    currentSets.push({ reps: inheritedReps, weight: inheritedWeight, completed: false });
     setActiveWorkout(updated);
   };
 
@@ -234,24 +148,19 @@ export default function App() {
       await addDoc(collection(db, "users", user.uid, "history"), {
         timestamp: Date.now(),
         date: new Date().toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-        matchDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), // Added for easy calendar matching
+        matchDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 
         duration: formatTime(seconds),
         data: activeWorkout
       });
-      setIsWorkoutActive(false);
-      setActiveWorkout({});
-      setActiveTab('history');
+      setIsWorkoutActive(false); setActiveWorkout({}); setActiveTab('history'); setSelectedDate(null);
     } catch (e) { alert("Error saving workout: " + e.message); }
   };
 
-  // --- NEW: DELETE HISTORY LOGIC ---
   const deleteHistoryEntry = async (entryId) => {
     if (window.confirm("Delete this workout from your cloud history? This cannot be undone.")) {
       try {
         await deleteDoc(doc(db, "users", user.uid, "history", entryId));
-      } catch (error) {
-        alert("Failed to delete: " + error.message);
-      }
+      } catch (error) { alert("Failed to delete: " + error.message); }
     }
   };
 
@@ -268,6 +177,7 @@ export default function App() {
     } catch (e) { alert("Firebase Protocol: " + e.message); }
   };
 
+  // --- RENDER FLOW ---
   if (authLoading) return <div style={styles.appContainer}><p style={{padding: '50px'}}>Loading...</p></div>;
 
   if (!user) {
@@ -310,7 +220,7 @@ export default function App() {
                       <div style={styles.exerciseHeader}><h3 style={styles.exerciseName}>{exercise}</h3></div>
                       <div style={styles.tableHeader}>
                         <span style={styles.setCol}>Set</span>
-                        <span style={styles.prevCol}>Previous</span>
+                        <span style={styles.prevCol}>Prev</span>
                         <span style={styles.inputColTitle}>kg</span>
                         <span style={styles.inputColTitle}>Reps</span>
                         <span style={styles.checkCol}>✓</span>
@@ -338,37 +248,47 @@ export default function App() {
           </div>
         )}
 
-        {/* HISTORY TAB */}
+        {/* HISTORY TAB WITH CALENDAR AND FILTERING */}
         {activeTab === 'history' && (
           <div style={{padding: '20px'}}>
             <h1 style={{fontSize: '28px', marginBottom: '20px'}}>Your Progress</h1>
             
-            {/* WEEKLY CALENDAR WIDGET */}
             <div style={styles.calendarContainer}>
               {getCurrentWeek().map(dayInfo => {
                 const isWorkoutDay = workoutHistory.some(entry => entry.date.includes(dayInfo.matchString));
+                const isSelected = selectedDate === dayInfo.matchString;
                 return (
-                  <div key={dayInfo.date} style={{
+                  <div key={dayInfo.date} onClick={() => setSelectedDate(isSelected ? null : dayInfo.matchString)} style={{
                     ...styles.calendarDay, 
-                    backgroundColor: isWorkoutDay ? '#34C759' : '#1C1C1E',
-                    border: dayInfo.isToday ? '1px solid #0A84FF' : '1px solid transparent'
+                    backgroundColor: isSelected ? '#0A84FF' : (isWorkoutDay ? '#34C759' : '#1C1C1E'),
+                    border: dayInfo.isToday ? '1px solid #0A84FF' : '1px solid transparent',
+                    cursor: 'pointer', transform: isSelected ? 'scale(1.1)' : 'scale(1)', transition: 'all 0.2s ease'
                   }}>
-                    <span style={{fontSize: '10px', color: isWorkoutDay ? '#000' : '#8E8E93', fontWeight: 'bold'}}>{dayInfo.dayName}</span>
-                    <span style={{fontSize: '16px', color: isWorkoutDay ? '#000' : '#FFF', fontWeight: 'bold'}}>{dayInfo.date}</span>
+                    <span style={{fontSize: '10px', color: (isSelected || isWorkoutDay) ? '#000' : '#8E8E93', fontWeight: 'bold'}}>{dayInfo.dayName}</span>
+                    <span style={{fontSize: '16px', color: (isSelected || isWorkoutDay) ? '#000' : '#FFF', fontWeight: 'bold'}}>{dayInfo.date}</span>
                   </div>
                 );
               })}
             </div>
 
-            {workoutHistory.length === 0 ? <p style={{color: '#8E8E93', textAlign: 'center', marginTop: '40px'}}>No history available.</p> : 
-              workoutHistory.map(entry => (
+            {selectedDate && (
+              <p style={{color: '#0A84FF', textAlign: 'center', marginBottom: '15px', cursor: 'pointer'}} onClick={() => setSelectedDate(null)}>
+                Showing workouts for {selectedDate} (Tap to show all)
+              </p>
+            )}
+
+            {workoutHistory.filter(entry => !selectedDate || entry.date.includes(selectedDate)).length === 0 ? (
+              <p style={{color: '#8E8E93', textAlign: 'center', marginTop: '40px'}}>
+                {selectedDate ? `No workouts recorded on ${selectedDate}` : "No history available."}
+              </p>
+            ) : (
+              workoutHistory.filter(entry => !selectedDate || entry.date.includes(selectedDate)).map(entry => (
                 <div key={entry.id} style={styles.historyCard}>
                   <div style={styles.historyHeader}>
                     <div>
                       <p style={{margin: 0, fontWeight: 'bold', fontSize: '18px'}}>{entry.date}</p>
                       <p style={{margin: '5px 0 0 0', color: '#0A84FF', fontWeight: 'bold', fontSize: '14px'}}>⏱ {entry.duration}</p>
                     </div>
-                    {/* DELETE BUTTON */}
                     <button onClick={() => deleteHistoryEntry(entry.id)} style={styles.deleteBtn}>Delete</button>
                   </div>
                   {Object.entries(entry.data).map(([exName, exSets]) => {
@@ -383,7 +303,7 @@ export default function App() {
                   })}
                 </div>
               ))
-            }
+            )}
           </div>
         )}
 
@@ -437,7 +357,7 @@ export default function App() {
   );
 }
 
-// 3. DESIGN SYSTEM
+// 3. DESIGN SYSTEM 
 const styles = {
   appContainer: { display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#000000', color: '#FFFFFF', fontFamily: '-apple-system, sans-serif' },
   contentScroll: { flex: 1, overflowY: 'auto', paddingBottom: '90px' },
