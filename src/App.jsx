@@ -325,7 +325,6 @@ export default function App() {
                   </div>
                   {/* CHI TIẾT TỪNG BÀI TẬP VÀ SET */}
                   {Object.entries(entry.data).map(([exName, exSets]) => {
-                    // Lọc ra những set đã tick hoàn thành
                     const completedSets = exSets.filter(s => s.completed);
                     if (completedSets.length === 0) return null;
                     
@@ -334,7 +333,11 @@ export default function App() {
                         <p style={styles.historyExerciseTitle}>{exName}</p>
                         {completedSets.map((set, idx) => (
                           <div key={idx} style={styles.historySetRow}>
-                            <span style={{fontWeight: 'bold'}}>Set {idx + 1}</span>
+                            <span style={{fontWeight: 'bold', width: '50px'}}>Set {idx + 1}</span>
+                            
+                            {/* Đường chấm gạch nối ở giữa */}
+                            <div style={styles.dottedLine}></div>
+                            
                             <span>{set.weight} kg × {set.reps} reps</span>
                           </div>
                         ))}
@@ -414,10 +417,17 @@ const styles = {
   navBtn: { backgroundColor: 'transparent', border: 'none', fontWeight: '600', fontSize: '12px', textTransform: 'uppercase', cursor: 'pointer' },
   historyCard: { backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '15px' },
   historyHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #2C2C2E', paddingBottom: '15px', marginBottom: '15px' },
-  historyDetail: { display: 'flex', fontSize: '15px', padding: '6px 0' },
+  
+  // --- NEW HISTORY DETAILS STYLES ---
+  historyExerciseBlock: { marginTop: '10px', backgroundColor: '#0A0A0A', borderRadius: '8px', padding: '12px' },
+  historyExerciseTitle: { margin: '0 0 10px 0', fontSize: '16px', fontWeight: 'bold', color: '#0A84FF' },
+  historySetRow: { display: 'flex', alignItems: 'center', fontSize: '14px', color: '#8E8E93', padding: '6px 0' },
+  dottedLine: { flex: 1, borderBottom: '2px dotted #2C2C2E', margin: '0 15px', transform: 'translateY(-3px)' },
+  // ----------------------------------
+
   exerciseBlock: { padding: '0 20px 20px 20px', borderBottom: '1px solid #1C1C1E', marginBottom: '20px' },
   exerciseHeader: { marginBottom: '15px' },
-  exerciseName: { margin: 0, fontSize: '18px', fontWeight: 'bold' },
+  exerciseName: { margin: '0', fontSize: '18px', fontWeight: 'bold' },
   tableHeader: { display: 'flex', color: '#8E8E93', fontSize: '13px', fontWeight: '600', marginBottom: '10px' },
   setRow: { display: 'flex', alignItems: 'center', marginBottom: '6px', padding: '4px 0', borderRadius: '8px' },
   setCol: { flex: 0.5, textAlign: 'center', fontWeight: 'bold', color: '#8E8E93' },
