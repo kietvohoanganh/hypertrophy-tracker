@@ -101,18 +101,37 @@ export default function App() {
 
   // AUTH HANDLERS
   // AUTH HANDLERS
+  // AUTHENTICATION HANDLERS WITH STRICT VALIDATION
   const handleAuth = async (type) => {
+    // 1. Sanitize the input
+    const sanitizedEmail = email.trim();
+
+    // 2. Prevent empty submissions
+    if (!sanitizedEmail) {
+      return alert("Validation Error: Please enter an email address.");
+    }
+
+    // 3. Regex format validation (ensures the structure is prefix@domain.suffix)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(sanitizedEmail)) {
+      return alert("Validation Error: Please enter a formally valid email format.");
+    }
+
+    // 4. Firebase requires passwords to be at least 6 characters
+    if (!password || password.length < 6) {
+      return alert("Validation Error: Your password must be a minimum of 6 characters.");
+    }
+
+    // 5. Execute Firebase Authentication
     try {
-      // Sanitize the email string to prevent 'auth/invalid-email' errors
-      const sanitizedEmail = email.trim(); 
-      
       if (type === 'signup') {
         await createUserWithEmailAndPassword(auth, sanitizedEmail, password);
       } else {
         await signInWithEmailAndPassword(auth, sanitizedEmail, password);
       }
     } catch (e) { 
-      alert(e.message); 
+      // This will catch backend errors (e.g., "Email already in use" or "Wrong password")
+      alert("Firebase Protocol: " + e.message); 
     }
   };
 
