@@ -73,6 +73,24 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isWorkoutActive]);
 
+  useEffect(() => {
+  if (isWorkoutActive && workoutHistory.length > 0) {
+    const activeExercises = Object.keys(activeWorkout);
+    let newPrevData = {};
+
+    activeExercises.forEach(exName => {
+      // Tìm workout gần nhất có chứa bài tập này
+      const lastWorkoutWithEx = workoutHistory.find(h => h.data && h.data[exName]);
+      if (lastWorkoutWithEx) {
+        const lastSets = lastWorkoutWithEx.data[exName];
+        // Lấy set có tạ nặng nhất hoặc set đầu tiên làm mốc
+        const bestSet = lastSets.reduce((prev, current) => (parseFloat(prev.weight) > parseFloat(current.weight)) ? prev : current);
+        newPrevData[exName] = `${bestSet.weight}kg x ${bestSet.reps}`;
+      }
+    });
+    setPrevData(newPrevData);
+  }
+}, [activeWorkout, isWorkoutActive, workoutHistory]);
   // --- HELPER FUNCTIONS ---
   const formatTime = (totalSeconds) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -188,7 +206,9 @@ export default function App() {
       else await signInWithEmailAndPassword(auth, sanitizedEmail, password);
     } catch (e) { alert("Firebase Protocol: " + e.message); }
   };
-
+  const [customExercise, setCustomExercise] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [prevData, setPrevData] = useState({}); // Lưu dữ liệu buổi trước cho từng bài tập
   // --- RENDER FLOW ---
   if (authLoading) return <div style={styles.appContainer}><p style={{padding: '50px'}}>Loading...</p></div>;
 
@@ -240,8 +260,19 @@ export default function App() {
                       {sets.map((set, idx) => (
                         <div key={idx} style={{...styles.setRow, backgroundColor: set.completed ? 'rgba(52, 199, 89, 0.15)' : 'transparent'}}>
                           <span style={styles.setCol}>{idx + 1}</span>
+{/* Thay dấu "—" bằng dữ liệu từ prevData */}
+                          <span style={styles.prevCol}>{prevData[exercise] || "—"}</span>
                           <span style={styles.prevCol}>—</span>
-                          <div style={styles.inputCol}><input type="number" placeholder="0" value={set.weight} onChange={(e) => updateSet(exercise, idx, 'weight', e.target.value)} style={styles.inputField} /></div>
+                          <div style={styles.inputCol}>
+                          <input 
+                            type="number" 
+                            step="0.1" // Cho phép nhập tạ lẻ như 1.25, 2.5
+                            placeholder="0" 
+                            value={set.weight} 
+                            onChange={(e) => updateSet(exercise, idx, 'weight', e.target.value)} 
+                            style={styles.inputField} 
+                            />
+                          </div>
                           <div style={styles.inputCol}><input type="number" placeholder="0" value={set.reps} onChange={(e) => updateSet(exercise, idx, 'reps', e.target.value)} style={styles.inputField} /></div>
                           <div style={styles.checkCol}><button onClick={() => toggleSetCompletion(exercise, idx)} style={{...styles.checkButton, backgroundColor: set.completed ? '#34C759' : '#2C2C2E', color: set.completed ? '#FFFFFF' : '#8E8E93'}}>✓</button></div>
                         </div>
@@ -366,12 +397,32 @@ export default function App() {
       {/* EXERCISE MODAL */}
       {showExerciseModal && (
         <div style={styles.modalOverlay}>
-          <div style={styles.modalHeader}>
-            <span onClick={() => setShowExerciseModal(false)} style={{fontSize: '24px', cursor: 'pointer', color: '#8E8E93'}}>✕</span>
-            <h2 style={{margin: 0, fontSize: '18px'}}>Add Exercises</h2>
-            <span style={{width: '24px'}}></span>
-          </div>
-          <div style={{overflowY: 'auto', paddingBottom: '50px'}}>
+    <div style={styles.modalHeader}>
+      <span onClick={() => setShowExerciseModal(false)} style={{fontSize: '24px', cursor: 'pointer', color: '#8E8E93'}}>✕</span>
+      <h2 style={{margin: 0, fontSize: '18px'}}>Add Exercises</h2>
+      <span style={{width: '24px'}}></span>
+    </div>
+    
+    {/* PHẦN THÊM MỚI TÙY CHỈNH */}
+    <div style={{padding: '20px', borderBottom: '1px solid #1C1C1E', display: 'flex', gap: '10px'}}>
+      <input 
+        style={{...styles.authInput, marginBottom: 0, flex: 1}} 
+        placeholder="New exercise name..."
+        value={customExercise}
+        onChange={(e) => setCustomExercise(e.target.value)}
+      />
+      <button 
+        onClick={() => {
+          if(customExercise.trim()) {
+            addExerciseToWorkout(customExercise.trim());
+            setCustomExercise('');
+          }
+        }}
+        style={{...styles.mainBtn, width: '80px', borderRadius: '8px'}}
+      >Add</button>
+    </div>
+
+    <div style={{overflowY: 'auto', paddingBottom: '50px'}}>
             {Object.entries(EXERCISE_DATABASE).map(([category, exercises]) => (
               <div key={category} style={{padding: '10px 20px'}}>
                 <h3 style={{color: '#0A84FF', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '10px'}}>{category}</h3>
