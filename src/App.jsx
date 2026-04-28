@@ -6,12 +6,13 @@ import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, onSnapsh
 // 1. YOUR FIREBASE CONFIGURATION
 // Replace this with the config from your Firebase Console
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCSC7lIl3aBkzu4q9KoJep6YVAxGThO1AI",
+  authDomain: "hypertrophy-tracker-a14a5.firebaseapp.com",
+  projectId: "hypertrophy-tracker-a14a5",
+  storageBucket: "hypertrophy-tracker-a14a5.firebasestorage.app",
+  messagingSenderId: "230361153449",
+  appId: "1:230361153449:web:a8b9b991005569a0754eb8",
+  measurementId: "G-JBYZJ82X26"
 };
 
 const app = initializeApp(firebaseConfig);
