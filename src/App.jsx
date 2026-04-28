@@ -39,7 +39,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('workout'); 
   const [workoutHistory, setWorkoutHistory] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null); // The history filter state
-  
+  const [weekOffset, setWeekOffset] = useState(0);
   const [activeWorkout, setActiveWorkout] = useState({});
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
@@ -82,15 +82,27 @@ export default function App() {
 
   const getCurrentWeek = () => {
     const curr = new Date();
+    // Shift the baseline date by the offset multiplier (7 days per week)
+    curr.setDate(curr.getDate() + (weekOffset * 7));
+    
     const first = curr.getDate() - curr.getDay() + (curr.getDay() === 0 ? -6 : 1); 
     const week = [];
+    
     for (let i = 0; i < 7; i++) {
-      let next = new Date(curr.setDate(first + i));
+      let next = new Date(curr.getTime());
+      next.setDate(first + i);
+      
+      // Strict validation to ensure the "Today" border only highlights the actual current day
+      const realToday = new Date();
+      const isActuallyToday = realToday.getDate() === next.getDate() && 
+                              realToday.getMonth() === next.getMonth() && 
+                              realToday.getFullYear() === next.getFullYear();
+
       week.push({
         dayName: next.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0), 
         date: next.getDate(),
         matchString: next.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 
-        isToday: new Date().getDate() === next.getDate()
+        isToday: isActuallyToday
       });
     }
     return week;
