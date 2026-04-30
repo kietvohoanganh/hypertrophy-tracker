@@ -3,8 +3,8 @@ import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, setDoc, getDoc } from "firebase/firestore";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+
 // 1. YOUR FIREBASE CONFIGURATION
-// Replace this with the config from your Firebase Console
 const firebaseConfig = {
   apiKey: "AIzaSyCSC7lIl3aBkzu4q9KoJep6YVAxGThO1AI",
   authDomain: "hypertrophy-tracker-a14a5.firebaseapp.com",
@@ -27,10 +27,9 @@ const EXERCISE_DATABASE = {
   "Legs": ["Barbell Squat", "High Bar Squat", "Front Squat", "Goblet Squat", "Hack Squat", "Leg Press", "Reverse Nordic", "Sissy Squat", "Leg Extensions", "Bulgarian Split Squat", "Front Foot Elevated Smith Lunge", "Seated Machine Adductor", "Romanian Deadlift (RDL)", "Stiff Legged Deadlift", "Single-Leg RDL", "Good Mornings", "Seated/Lying Leg Curl", "Glute-Ham Raise (GHR)", "Nordic Hamstring Curl", "Glute Thrust Machine", "Barbell Hip Thrust", "Sit Back Squat", "Deficit Reverse Lunge", "Cable Glute Kickbacks", "Weighted Step-Ups", "Seated Machine Abductor", "Calf Raises", "Standing Calf Raise", "Seated Calf Raise", "Tibialis Raise"],
   "Arms": ["Bicep Curls", "Triceps Pushdown", "Skull Crushers", "Hammer Curls", "Overhead Extension", "Dip Machine", "Decline Dumbbell Curl", "Incline Dumbbell Curl", "Superman Cable Curl"],
   "Core": ["Hanging Leg Raises", "Cable Crunches", "Plank"]
-  
 };
 
-// 4. SEASONING DATABASE (Estimated extra kcal per 100g of food)
+// 4. SEASONING DATABASE 
 const SEASONING_DATABASE = [
   { key: 'soySauce', label: 'Soy Sauce', kcal: 5 },
   { key: 'fishSauce', label: 'Fish Sauce', kcal: 5 },
@@ -43,9 +42,9 @@ const SEASONING_DATABASE = [
   { key: 'coconutMilk', label: 'Coconut Milk', kcal: 50 },
   { key: 'scallionOil', label: 'Scallion Oil (Mỡ hành)', kcal: 60 }
 ];
+
 export default function App() {
   // --- STATE MANAGEMENT ---
-  // --- MENU STATE ---
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -56,13 +55,14 @@ export default function App() {
   const [isSearchingFood, setIsSearchingFood] = useState(false);
   const [activeTab, setActiveTab] = useState('workout'); 
   const [workoutHistory, setWorkoutHistory] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(null); // The history filter state
+  const [selectedDate, setSelectedDate] = useState(null); 
   const [weekOffset, setWeekOffset] = useState(0);
   const [activeWorkout, setActiveWorkout] = useState({});
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [seconds, setSeconds] = useState(0);
-  // --- COACHING MODULE STATES ---
+  
+  // COACHING MODULE STATES
   const [profileAge, setProfileAge] = useState(20);
   const [profileWeight, setProfileWeight] = useState(70);
   const [profileHeight, setProfileHeight] = useState(170);
@@ -70,18 +70,21 @@ export default function App() {
   const [profileActivity, setProfileActivity] = useState(1.2);
   const [profileGoal, setProfileGoal] = useState('maintain');
   const [targetMacros, setTargetMacros] = useState(null);
-// --- DYNAMIC TDEE STATES ---
+  
+  // DYNAMIC TDEE STATES 
   const [dailyWeight, setDailyWeight] = useState('');
-//  const [dailyCalories, setDailyCalories] = useState('');
   const [dailyLogs, setDailyLogs] = useState([]);
   const [dynamicTDEE, setDynamicTDEE] = useState(null);
-  // --- NUTRITION MODAL STATES ---
+  
+  // NUTRITION MODAL STATES 
   const [selectedFood, setSelectedFood] = useState(null);
   const [foodWeight, setFoodWeight] = useState(100);
   const [cookingMethod, setCookingMethod] = useState('raw_boiled');
-//  const [consumedFoods, setConsumedFoods] = useState([]);
-  // New granular seasoning state
   const [activeSeasonings, setActiveSeasonings] = useState({});
+
+  const [customExercise, setCustomExercise] = useState('');
+  const [prevData, setPrevData] = useState({}); 
+
   // --- USE EFFECTS ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -90,18 +93,16 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
   useEffect(() => {
     if (user) {
       const logsQuery = query(collection(db, "users", user.uid, "daily_logs"), orderBy("timestamp", "desc"));
       const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
         const logsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setDailyLogs(logsData);
-        
-        // Kích hoạt tính toán TDEE khi có đủ dữ liệu (Tối thiểu 7 ngày)
         if (logsData.length >= 7) {
           calculateDynamicTDEE(logsData);
         } else {
-          // BỔ SUNG: Xóa trắng kết quả TDEE nếu bạn lỡ xóa dữ liệu tụt xuống dưới 7 ngày
           setDynamicTDEE(null);
         }
       });
@@ -129,75 +130,62 @@ export default function App() {
   }, [isWorkoutActive]);
 
   useEffect(() => {
-  if (isWorkoutActive && workoutHistory.length > 0) {
-    const activeExercises = Object.keys(activeWorkout);
-    let newPrevData = {};
+    if (isWorkoutActive && workoutHistory.length > 0) {
+      const activeExercises = Object.keys(activeWorkout);
+      let newPrevData = {};
+      activeExercises.forEach(exName => {
+        const lastWorkoutWithEx = workoutHistory.find(h => h.data && h.data[exName]);
+        if (lastWorkoutWithEx) {
+          const lastSets = lastWorkoutWithEx.data[exName];
+          const bestSet = lastSets.reduce((prev, current) => (parseFloat(prev.weight) > parseFloat(current.weight)) ? prev : current);
+          newPrevData[exName] = `${bestSet.weight}kg x ${bestSet.reps}`;
+        }
+      });
+      setPrevData(newPrevData);
+    }
+  }, [activeWorkout, isWorkoutActive, workoutHistory]);
 
-    activeExercises.forEach(exName => {
-      // Tìm workout gần nhất có chứa bài tập này
-      const lastWorkoutWithEx = workoutHistory.find(h => h.data && h.data[exName]);
-      if (lastWorkoutWithEx) {
-        const lastSets = lastWorkoutWithEx.data[exName];
-        // Lấy set có tạ nặng nhất hoặc set đầu tiên làm mốc
-        const bestSet = lastSets.reduce((prev, current) => (parseFloat(prev.weight) > parseFloat(current.weight)) ? prev : current);
-        newPrevData[exName] = `${bestSet.weight}kg x ${bestSet.reps}`;
-      }
-    });
-    setPrevData(newPrevData);
-  }
-}, [activeWorkout, isWorkoutActive, workoutHistory]);
-// --- HELPER FUNCTIONS ---
-
+  // --- HELPER FUNCTIONS ---
   const getTodayDocId = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
-  // MODULE 4: Goal Setting & Macro Coaching Engine
+
   const calculateCoachingMacros = () => {
-    // Sửa điều kiện kiểm tra và gán biến weight
     if (!profileWeight) return alert("Please enter your weight to calculate macros!");
     const weight = parseFloat(profileWeight);
     const height = parseFloat(profileHeight);
     const age = parseInt(profileAge);
 
-    // Mifflin-St Jeor Equation
     let bmr = (10 * weight) + (6.25 * height) - (5 * age);
     bmr += profileGender === 'male' ? 5 : -161;
 
     let targetTDEE = bmr * parseFloat(profileActivity);
 
-    // Apply Goal Modifiers
-    if (profileGoal === 'cut') targetTDEE -= 500; // -0.5kg/week
-    if (profileGoal === 'bulk') targetTDEE += 300; // +0.25kg/week
+    if (profileGoal === 'cut') targetTDEE -= 500; 
+    if (profileGoal === 'bulk') targetTDEE += 300; 
 
     targetTDEE = Math.round(targetTDEE);
 
-    // Macro Split (Prioritize Protein: 2.2g/kg, Fat: 1g/kg)
     const protein = Math.round(weight * 2.2);
     const fat = Math.round(weight * 1.0);
-    
-    // Remaining calories for Carbs
     const remainingKcal = targetTDEE - (protein * 4) - (fat * 9);
     const carbs = remainingKcal > 0 ? Math.round(remainingKcal / 4) : 0;
 
     setTargetMacros({ kcal: targetTDEE, protein, fat, carbs });
   };
 
-  // MODULE 3: Exponential Moving Average (EMA) Chart Data Generator
   const generateTrendData = () => {
     if (dailyLogs.length === 0) return [];
 
-    // Sort chronologically (oldest first)
     const chronologicalLogs = [...dailyLogs].reverse();
-    const alpha = 2 / (7 + 1); // 7-day smoothing period
+    const alpha = 2 / (7 + 1); 
     
-    let currentEMA = chronologicalLogs[0].weight; // Baseline is the first weight log
+    let currentEMA = chronologicalLogs[0].weight; 
 
     return chronologicalLogs.map((log) => {
       const actualWeight = parseFloat(log.weight || currentEMA);
       currentEMA = (alpha * actualWeight) + ((1 - alpha) * currentEMA);
-      
-      // Keep short date for X-Axis (e.g., "5/1")
       const shortDate = new Date(log.date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
       
       return {
@@ -209,7 +197,6 @@ export default function App() {
   };
 
   const deleteDailyLog = async (logId) => {
-    // Bypassing window.confirm to prevent browser popup suppression
     try {
       await deleteDoc(doc(db, "users", user.uid, "daily_logs", logId));
       alert("Nutrition log deleted successfully!");
@@ -218,7 +205,6 @@ export default function App() {
     }
   };
 
-  // Dynamic TDEE Algorithm (14-day Sliding Window)
   const calculateDynamicTDEE = (logs, windowSize = 14) => {
     const windowLogs = logs.slice(0, windowSize);
     const N = windowLogs.length;
@@ -266,7 +252,6 @@ export default function App() {
     return week;
   };
 
-  // Function to search generic foods via USDA FoodData Central API
   const searchFood = async () => {
     if (!foodSearch.trim()) return;
     setIsSearchingFood(true);
@@ -305,7 +290,6 @@ export default function App() {
     setIsSearchingFood(false);
   };
 
-  // Open the modal to customize food details and reset states
   const openFoodModal = (food) => {
     setSelectedFood(food);
     setFoodWeight(100);
@@ -316,7 +300,6 @@ export default function App() {
     setActiveSeasonings(initialSeasonings);
   };
 
-  // Automatically calculate, aggregate duplicates, and sync directly to Firebase
   const confirmAndLogFood = async () => {
     if (!selectedFood) return;
 
@@ -327,9 +310,14 @@ export default function App() {
     });
 
     const weightRatio = parseFloat(foodWeight) / 100;
+    
     const baseKcal = selectedFood.kcal;
     const extraKcal = cookingModifiers[cookingMethod] + totalSeasoningKcal;
     const finalCalculatedKcal = Math.round((baseKcal + extraKcal) * weightRatio);
+
+    const calculatedProtein = Math.round((selectedFood.protein || 0) * weightRatio);
+    const calculatedCarbs = Math.round((selectedFood.carbs || 0) * weightRatio);
+    const calculatedFat = Math.round((selectedFood.fat || 0) * weightRatio);
 
     const todayId = getTodayDocId();
     const logRef = doc(db, "users", user.uid, "daily_logs", todayId);
@@ -339,12 +327,19 @@ export default function App() {
       let currentFoods = [];
       let currentCalories = 0;
       let currentWeight = ''; 
+      
+      let currentProtein = 0;
+      let currentCarbs = 0;
+      let currentFat = 0;
 
       if (docSnap.exists()) {
         const data = docSnap.data();
         currentFoods = data.foods || [];
         currentCalories = data.calories || 0;
         currentWeight = data.weight || '';
+        currentProtein = data.protein || 0;
+        currentCarbs = data.carbs || 0;
+        currentFat = data.fat || 0;
       }
 
       const existingFoodIndex = currentFoods.findIndex(f => f.name === selectedFood.name);
@@ -352,12 +347,18 @@ export default function App() {
       if (existingFoodIndex >= 0) {
         currentFoods[existingFoodIndex].weight += parseFloat(foodWeight);
         currentFoods[existingFoodIndex].kcal += finalCalculatedKcal;
+        currentFoods[existingFoodIndex].protein = (currentFoods[existingFoodIndex].protein || 0) + calculatedProtein;
+        currentFoods[existingFoodIndex].carbs = (currentFoods[existingFoodIndex].carbs || 0) + calculatedCarbs;
+        currentFoods[existingFoodIndex].fat = (currentFoods[existingFoodIndex].fat || 0) + calculatedFat;
         currentFoods[existingFoodIndex].time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       } else {
         currentFoods.push({
           name: selectedFood.name,
           weight: parseFloat(foodWeight),
           kcal: finalCalculatedKcal,
+          protein: calculatedProtein,
+          carbs: calculatedCarbs,
+          fat: calculatedFat,
           time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
         });
       }
@@ -367,10 +368,13 @@ export default function App() {
         date: new Date().toLocaleDateString('en-US'),
         foods: currentFoods,
         calories: currentCalories + finalCalculatedKcal,
+        protein: currentProtein + calculatedProtein,
+        carbs: currentCarbs + calculatedCarbs,
+        fat: currentFat + calculatedFat,
         weight: currentWeight
       }, { merge: true });
 
-      alert(`Added ${foodWeight}g of ${selectedFood.name}. Database synced automatically!`);
+      alert(`Added ${foodWeight}g of ${selectedFood.name}. Macros updated!`);
       setSelectedFood(null);
       setFoodSearch('');
       setFoodResults([]);
@@ -379,7 +383,6 @@ export default function App() {
     }
   };
 
-  // Function to independently update body weight for the current day
   const updateDailyWeight = async () => {
     if (!dailyWeight) return alert("Please enter your weight!");
     
@@ -399,6 +402,7 @@ export default function App() {
       alert("Database Error: " + e.message);
     }
   };
+
   // --- WORKOUT LOGIC ---
   const startWorkout = () => { setIsWorkoutActive(true); setSeconds(0); setActiveWorkout({}); };
 
@@ -421,7 +425,6 @@ export default function App() {
     setActiveWorkout(updated);
   };
 
-  // The optimized addSet with auto-fill logic
   const addSet = (exercise) => {
     const updated = { ...activeWorkout };
     const currentSets = updated[exercise];
@@ -460,7 +463,6 @@ export default function App() {
   };
 
   const deleteHistoryEntry = async (entryId) => {
-    // Bypassing window.confirm to prevent browser popup suppression
     try {
       await deleteDoc(doc(db, "users", user.uid, "history", entryId));
       alert("Workout session deleted successfully!");
@@ -481,9 +483,7 @@ export default function App() {
       else await signInWithEmailAndPassword(auth, sanitizedEmail, password);
     } catch (e) { alert("Firebase Protocol: " + e.message); }
   };
-  const [customExercise, setCustomExercise] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [prevData, setPrevData] = useState({}); // Lưu dữ liệu buổi trước cho từng bài tập
+
   // --- RENDER FLOW ---
   if (authLoading) return <div style={styles.appContainer}><p style={{padding: '50px'}}>Loading...</p></div>;
 
@@ -543,13 +543,11 @@ export default function App() {
                       {sets.map((set, idx) => (
                         <div key={idx} style={{...styles.setRow, backgroundColor: set.completed ? 'rgba(52, 199, 89, 0.15)' : 'transparent'}}>
                           <span style={styles.setCol}>{idx + 1}</span>
-{/* Thay dấu "—" bằng dữ liệu từ prevData */}
                           <span style={styles.prevCol}>{prevData[exercise] || "—"}</span>
-                          <span style={styles.prevCol}>—</span>
                           <div style={styles.inputCol}>
                           <input 
                             type="number" 
-                            step="0.1" // Cho phép nhập tạ lẻ như 1.25, 2.5
+                            step="0.1" 
                             placeholder="0" 
                             value={set.weight} 
                             onChange={(e) => updateSet(exercise, idx, 'weight', e.target.value)} 
@@ -574,29 +572,17 @@ export default function App() {
           </div>
         )}
 
-        {/* HISTORY TAB WITH CHRONOLOGICAL NAVIGATION */}
+        {/* HISTORY TAB */}
         {activeTab === 'history' && (
           <div style={{padding: '20px'}}>
             <h1 style={{fontSize: '28px', marginBottom: '20px'}}>Your Progress</h1>
             
-            {/* NAVIGATION CONTROLS */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <button 
-                onClick={() => { setWeekOffset(w => w - 1); setSelectedDate(null); }} 
-                style={styles.navArrow}
-              >
-                ◀ Past
-              </button>
+              <button onClick={() => { setWeekOffset(w => w - 1); setSelectedDate(null); }} style={styles.navArrow}>◀ Past</button>
               <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#8E8E93', textTransform: 'uppercase', letterSpacing: '1px' }}>
                 {weekOffset === 0 ? "Current Week" : `${Math.abs(weekOffset)} Week(s) Ago`}
               </span>
-              <button 
-                onClick={() => { setWeekOffset(w => w + 1); setSelectedDate(null); }} 
-                disabled={weekOffset === 0} 
-                style={{ ...styles.navArrow, opacity: weekOffset === 0 ? 0.2 : 1 }}
-              >
-                Future ▶
-              </button>
+              <button onClick={() => { setWeekOffset(w => w + 1); setSelectedDate(null); }} disabled={weekOffset === 0} style={{ ...styles.navArrow, opacity: weekOffset === 0 ? 0.2 : 1 }}>Future ▶</button>
             </div>
             
             <div style={styles.calendarContainer}>
@@ -637,21 +623,16 @@ export default function App() {
                     </div>
                     <button onClick={() => deleteHistoryEntry(entry.id)} style={styles.deleteBtn}>Delete</button>
                   </div>
-                  {/* CHI TIẾT TỪNG BÀI TẬP VÀ SET */}
                   {Object.entries(entry.data).map(([exName, exSets]) => {
                     const completedSets = exSets.filter(s => s.completed);
                     if (completedSets.length === 0) return null;
-                    
                     return (
                       <div key={exName} style={styles.historyExerciseBlock}>
                         <p style={styles.historyExerciseTitle}>{exName}</p>
                         {completedSets.map((set, idx) => (
                           <div key={idx} style={styles.historySetRow}>
                             <span style={{fontWeight: 'bold', width: '50px'}}>Set {idx + 1}</span>
-                            
-                            {/* Đường chấm gạch nối ở giữa */}
                             <div style={styles.dottedLine}></div>
-                            
                             <span>{set.weight} kg × {set.reps} reps</span>
                           </div>
                         ))}
@@ -664,12 +645,11 @@ export default function App() {
           </div>
         )}
 
-        {/* --- MODULE 1: METABOLISM TAB --- */}
+        {/* METABOLISM & TREND TAB */}
         {activeTab === 'tdee' && (
           <div style={{padding: '20px'}}>
             <h2 style={{fontSize: '24px', marginBottom: '20px', textAlign: 'center'}}>Metabolism Engine</h2>
             
-            {/* TDEE Display Board */}
             <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '30px', textAlign: 'center'}}>
               <p style={{color: '#8E8E93', margin: '0 0 10px 0'}}>Actual TDEE (Dynamic):</p>
               <p style={{fontSize: '36px', fontWeight: 'bold', color: '#0A84FF', margin: 0}}>
@@ -677,7 +657,7 @@ export default function App() {
               </p>
               {!dynamicTDEE && <p style={{fontSize: '12px', color: '#8E8E93', marginTop: '10px'}}>A minimum of 7 days logged is required for accurate algorithm calibration.</p>}
             </div>
-            {/* MODULE 3: Weight Trend Analysis Chart */}
+
             {dailyLogs.length >= 2 && (
               <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '30px'}}>
                 <h3 style={{margin: '0 0 15px 0', fontSize: '18px', color: '#FFF'}}>Weight Trend Analysis</h3>
@@ -689,11 +669,7 @@ export default function App() {
                       <YAxis stroke="#8E8E93" fontSize={12} tickLine={false} domain={['dataMin - 1', 'dataMax + 1']} />
                       <Tooltip contentStyle={{backgroundColor: '#0A0A0A', border: '1px solid #2C2C2E', borderRadius: '8px', color: '#FFF'}} itemStyle={{color: '#FFF'}} />
                       <Legend wrapperStyle={{fontSize: '12px', paddingTop: '10px'}} />
-                      
-                      {/* Actual Weight (Dotted, Faded) */}
                       <Line type="monotone" dataKey="Actual" stroke="#8E8E93" strokeWidth={2} strokeDasharray="5 5" dot={{r: 3, fill: '#8E8E93'}} name="Scale Weight" />
-                      
-                      {/* Trend Weight (Solid, Highlighted) */}
                       <Line type="monotone" dataKey="Trend" stroke="#0A84FF" strokeWidth={3} dot={false} activeDot={{r: 6}} name="True Trend (EMA)" />
                     </LineChart>
                   </ResponsiveContainer>
@@ -701,7 +677,7 @@ export default function App() {
                 <p style={{fontSize: '11px', color: '#8E8E93', textAlign: 'center', marginTop: '10px'}}>The blue line represents your true weight trend, filtering out water retention and noise.</p>
               </div>
             )}
-            {/* Daily Weight Input Only */}
+
             <h3 style={{fontSize: '18px', marginBottom: '15px', textAlign: 'left', color: '#FFF'}}>Daily Check-in</h3>
             <div style={{display: 'flex', gap: '10px', marginBottom: '20px'}}>
               <input 
@@ -714,7 +690,6 @@ export default function App() {
               <button onClick={updateDailyWeight} style={{...styles.mainBtn, width: '100px', borderRadius: '8px'}}>Update</button>
             </div>
 
-            {/* Caloric Intake History */}
             <h3 style={{fontSize: '20px', marginTop: '40px', marginBottom: '20px'}}>Intake History</h3>
             {dailyLogs.length === 0 ? (
               <p style={{color: '#8E8E93', textAlign: 'center'}}>No history available.</p>
@@ -726,13 +701,14 @@ export default function App() {
                       <div>
                         <p style={{margin: 0, fontWeight: 'bold', fontSize: '18px'}}>{log.date}</p>
                         <p style={{margin: '5px 0 0 0', color: '#34C759', fontWeight: 'bold', fontSize: '16px'}}>{log.calories || 0} kcal</p>
+                        <p style={{margin: '5px 0 0 0', fontSize: '13px', color: '#8E8E93'}}>
+                          <span style={{color: '#FF453A'}}>P: {log.protein || 0}g</span> | <span style={{color: '#32ADE6'}}>C: {log.carbs || 0}g</span> | <span style={{color: '#FFD60A'}}>F: {log.fat || 0}g</span>
+                        </p>
                         <p style={{margin: '5px 0 0 0', color: '#8E8E93', fontSize: '14px'}}>Body Weight: {log.weight || 'Not logged'} {log.weight ? 'kg' : ''}</p>
                       </div>
                       <button onClick={() => deleteDailyLog(log.id)} style={styles.deleteBtn}>Delete</button>
                     </div>
                   </div>
-                  
-                  {/* Food List from Database */}
                   {log.foods && log.foods.length > 0 && (
                     <div style={{marginTop: '10px'}}>
                       {log.foods.map((food, idx) => (
@@ -752,8 +728,8 @@ export default function App() {
             )}
           </div>
         )}
-        {/* --- MODULE 2: NUTRITION TAB --- */}
-        {/* --- MODULE 2: NUTRITION TAB --- */}
+
+        {/* NUTRITION SEARCH TAB */}
         {activeTab === 'food' && (
           <div style={{padding: '20px'}}>
             <h2 style={{fontSize: '24px', marginBottom: '20px', textAlign: 'center'}}>Nutrition Search</h2>
@@ -772,7 +748,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Render Search Results */}
             {foodResults.length > 0 ? (
               <div style={{backgroundColor: '#0A0A0A', borderRadius: '12px', padding: '10px', maxHeight: '60vh', overflowY: 'auto'}}>
                 {foodResults.map((food) => (
@@ -796,11 +771,9 @@ export default function App() {
           </div>
         )}
 
-
-        {/* --- PROFILE TAB (CLEANED UP) --- */}
+        {/* PROFILE / COACHING TAB */}
         {activeTab === 'you' && (
           <div style={{padding: '20px', textAlign: 'center'}}>
-            {/* MODULE 4: Coaching Module */}
             <h2 style={{fontSize: '24px', marginBottom: '20px', textAlign: 'center'}}>AI Coaching Setup</h2>
             <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '30px', textAlign: 'left'}}>
               
@@ -860,6 +833,7 @@ export default function App() {
                 </div>
               )}
             </div>
+
             <h2 style={{fontSize: '24px', marginBottom: '40px'}}>Account Details</h2>
             <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '20px'}}>
               <p style={{color: '#8E8E93', margin: '0 0 10px 0'}}>Logged in as:</p>
@@ -868,8 +842,8 @@ export default function App() {
             <button onClick={() => signOut(auth)} style={{...styles.authButton, backgroundColor: '#FF453A'}}>Sign Out</button>
           </div>
         )}
-      </div>
-      
+      </div> 
+
       {/* EXERCISE MODAL */}
       {showExerciseModal && (
         <div style={styles.modalOverlay}>
@@ -912,6 +886,7 @@ export default function App() {
           </div>
         </div>
       )}
+
       {/* SLIDE-IN MENU OVERLAY */}
       {isMenuOpen && (
         <div style={styles.menuOverlay} onClick={() => setIsMenuOpen(false)}>
@@ -938,6 +913,7 @@ export default function App() {
           </div>
         </div>
       )}
+
       {/* FOOD CUSTOMIZATION MODAL */}
       {selectedFood && (
         <div style={styles.modalOverlay}>
@@ -996,8 +972,6 @@ export default function App() {
           </div>
         </div>
       )}
-      {/* BOTTOM NAV (UPDATED WITH 5 TABS) */}
-      
     </div>
   );
 }
@@ -1005,7 +979,7 @@ export default function App() {
 // 3. DESIGN SYSTEM 
 const styles = {
   appContainer: { display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#000000', color: '#FFFFFF', fontFamily: '-apple-system, sans-serif' },
-  contentScroll: { flex: 1, overflowY: 'auto', paddingBottom: '20px' }, // Đã đổi thành 20px vì bỏ Bottom Nav
+  contentScroll: { flex: 1, overflowY: 'auto', paddingBottom: '20px' }, 
   authInput: { width: '100%', padding: '15px', marginBottom: '15px', backgroundColor: '#1C1C1E', color: '#FFF', border: 'none', borderRadius: '8px', fontSize: '16px' },
   authButton: { width: '100%', padding: '15px', backgroundColor: '#0A84FF', color: '#FFF', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' },
   timerText: { fontSize: '48px', fontWeight: 'bold', textAlign: 'center', margin: '0 0 30px 0' },
@@ -1018,8 +992,6 @@ const styles = {
   historyCard: { backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '15px' },
   historyHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #2C2C2E', paddingBottom: '15px', marginBottom: '15px' },
   
-  // --- NEW MENU STYLES ---
-  // --- NEW MENU STYLES ---
   globalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', backgroundColor: '#0A0A0A', borderBottom: '1px solid #1C1C1E', zIndex: 40 },
   menuButton: { background: 'transparent', border: 'none', color: '#FFFFFF', fontSize: '28px', cursor: 'pointer', padding: 0 },
   menuOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', justifyContent: 'flex-end', backdropFilter: 'blur(4px)' },
@@ -1027,12 +999,10 @@ const styles = {
   closeMenuBtn: { fontSize: '24px', color: '#8E8E93', cursor: 'pointer', paddingRight: '20px' },
   menuItem: { background: 'transparent', border: 'none', fontSize: '22px', fontWeight: 'bold', textAlign: 'left', cursor: 'pointer', padding: '15px 20px', transition: 'all 0.2s', width: '100%' },
   
-  // --- NEW HISTORY DETAILS STYLES ---
   historyExerciseBlock: { marginTop: '10px', backgroundColor: '#0A0A0A', borderRadius: '8px', padding: '12px' },
   historyExerciseTitle: { margin: '0 0 10px 0', fontSize: '16px', fontWeight: 'bold', color: '#0A84FF' },
   historySetRow: { display: 'flex', alignItems: 'center', fontSize: '14px', color: '#8E8E93', padding: '6px 0' },
   dottedLine: { flex: 1, borderBottom: '2px dotted #2C2C2E', margin: '0 15px', transform: 'translateY(-3px)' },
-  // ----------------------------------
 
   exerciseBlock: { padding: '0 20px 20px 20px', borderBottom: '1px solid #1C1C1E', marginBottom: '20px' },
   exerciseHeader: { marginBottom: '15px' },
