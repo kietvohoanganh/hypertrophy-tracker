@@ -264,7 +264,7 @@ export default function App() {
     if (!foodSearch.trim()) return;
     setIsSearchingFood(true);
     try {
-      const response = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=DEMO_KEY&query=${encodeURIComponent(foodSearch)}&dataType=Foundation,SR%20Legacy&pageSize=10`);
+      const response = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=PAZkSKwUUNLnxrIKC82rU0fCF24iGu2Qa1jsoLIe&query=${encodeURIComponent(foodSearch)}&dataType=Foundation,SR%20Legacy&pageSize=10`);
       const data = await response.json();
 
       if (!data.foods) {
