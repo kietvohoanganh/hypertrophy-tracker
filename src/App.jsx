@@ -589,39 +589,23 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
         )}
 
         {/* --- MODULE 2: NUTRITION TAB --- */}
+        {/* --- MODULE 2: NUTRITION TAB --- */}
         {activeTab === 'food' && (
           <div style={{padding: '20px'}}>
             <h2 style={{fontSize: '24px', marginBottom: '20px', textAlign: 'center'}}>Nutrition Search</h2>
             
             <div style={{display: 'flex', gap: '10px', marginBottom: '15px'}}>
-              <label style={{display: 'block', margin: '20px 0 10px 0', fontWeight: 'bold'}}>Condiments & Seasonings (per 100g):</label>
-            <div style={{
-              display: 'grid', 
-              gridTemplateColumns: '1fr 1fr', 
-              gap: '12px', 
-              backgroundColor: '#1C1C1E', 
-              padding: '15px', 
-              borderRadius: '8px',
-              marginBottom: '20px'
-            }}>
-              {SEASONING_DATABASE.map(seasoning => (
-                <div key={seasoning.key} style={{display: 'flex', alignItems: 'flex-start'}}>
-                  <input 
-                    type="checkbox" 
-                    id={`condiment_${seasoning.key}`}
-                    checked={activeSeasonings[seasoning.key] || false}
-                    onChange={(e) => setActiveSeasonings(prev => ({...prev, [seasoning.key]: e.target.checked}))}
-                    style={{width: '18px', height: '18px', marginRight: '8px', accentColor: '#0A84FF', flexShrink: 0, marginTop: '2px'}}
-                  />
-                  <label htmlFor={`condiment_${seasoning.key}`} style={{fontSize: '13px', cursor: 'pointer', lineHeight: '1.4'}}>
-                    <span style={{color: '#FFF', display: 'block'}}>{seasoning.label}</span>
-                    <span style={{color: '#8E8E93', fontSize: '11px'}}>
-                      {seasoning.kcal > 0 ? `+${seasoning.kcal} kcal` : '0 kcal'}
-                    </span>
-                  </label>
-                </div>
-              ))}
-            </div>
+              <input 
+                type="text" 
+                placeholder="Search food (e.g., rice, chicken)..." 
+                value={foodSearch} 
+                onChange={(e) => setFoodSearch(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && searchFood()}
+                style={{...styles.authInput, marginBottom: 0, flex: 1}} 
+              />
+              <button onClick={searchFood} style={{...styles.mainBtn, width: '80px', borderRadius: '8px'}}>
+                {isSearchingFood ? "..." : "Search"}
+              </button>
             </div>
 
             {/* Render Search Results */}
@@ -637,7 +621,7 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginLeft: '10px'}}>
                       <span style={{color: '#34C759', fontWeight: 'bold', fontSize: '16px', marginBottom: '5px'}}>{food.kcal} kcal</span>
-                      <button onClick={() => addFoodToLog(food)} style={{backgroundColor: '#1C1C1E', color: '#0A84FF', border: 'none', borderRadius: '6px', padding: '5px 10px', fontWeight: 'bold', cursor: 'pointer'}}>+ Add 100g</button>
+                      <button onClick={() => openFoodModal(food)} style={{backgroundColor: '#1C1C1E', color: '#0A84FF', border: 'none', borderRadius: '6px', padding: '5px 10px', fontWeight: 'bold', cursor: 'pointer'}}>Customize</button>
                     </div>
                   </div>
                 ))}
@@ -647,6 +631,7 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
             )}
           </div>
         )}
+
 
         {/* --- PROFILE TAB (CLEANED UP) --- */}
         {activeTab === 'you' && (
@@ -703,7 +688,64 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
           </div>
         </div>
       )}
+      {/* FOOD CUSTOMIZATION MODAL */}
+      {selectedFood && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalHeader}>
+            <span onClick={() => setSelectedFood(null)} style={{fontSize: '24px', cursor: 'pointer', color: '#8E8E93'}}>✕</span>
+            <h2 style={{margin: 0, fontSize: '18px'}}>Log Food</h2>
+            <span style={{width: '24px'}}></span>
+          </div>
 
+          <div style={{padding: '20px', overflowY: 'auto'}}>
+            <h3 style={{fontSize: '20px', color: '#0A84FF', marginBottom: '5px'}}>{selectedFood.name}</h3>
+            <p style={{color: '#8E8E93', fontSize: '14px', marginBottom: '20px'}}>Base: {selectedFood.kcal} kcal / 100g</p>
+
+            <label style={{display: 'block', marginBottom: '8px', fontWeight: 'bold'}}>Weight (grams):</label>
+            <input 
+              type="number" 
+              value={foodWeight}
+              onChange={(e) => setFoodWeight(e.target.value)}
+              style={styles.authInput} 
+            />
+
+            <label style={{display: 'block', margin: '15px 0 8px 0', fontWeight: 'bold'}}>Cooking Method:</label>
+            <select 
+              value={cookingMethod} 
+              onChange={(e) => setCookingMethod(e.target.value)}
+              style={{...styles.authInput, appearance: 'none'}}
+            >
+              <option value="raw_boiled">Raw / Boiled / Steamed (+0 kcal)</option>
+              <option value="grilled">Grilled / Roasted (+20 kcal)</option>
+              <option value="stir_fried">Stir-Fried / Pan-Fried (+50 kcal)</option>
+              <option value="deep_fried">Deep-Fried (+100 kcal)</option>
+            </select>
+
+            <label style={{display: 'block', margin: '20px 0 10px 0', fontWeight: 'bold'}}>Condiments & Seasonings (per 100g):</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', backgroundColor: '#1C1C1E', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+              {SEASONING_DATABASE.map(seasoning => (
+                <div key={seasoning.key} style={{display: 'flex', alignItems: 'flex-start'}}>
+                  <input 
+                    type="checkbox" 
+                    id={`condiment_${seasoning.key}`}
+                    checked={activeSeasonings[seasoning.key] || false}
+                    onChange={(e) => setActiveSeasonings(prev => ({...prev, [seasoning.key]: e.target.checked}))}
+                    style={{width: '18px', height: '18px', marginRight: '8px', accentColor: '#0A84FF', flexShrink: 0, marginTop: '2px'}}
+                  />
+                  <label htmlFor={`condiment_${seasoning.key}`} style={{fontSize: '13px', cursor: 'pointer', lineHeight: '1.4'}}>
+                    <span style={{color: '#FFF', display: 'block'}}>{seasoning.label}</span>
+                    <span style={{color: '#8E8E93', fontSize: '11px'}}>{seasoning.kcal > 0 ? `+${seasoning.kcal} kcal` : '0 kcal'}</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={confirmAndLogFood} style={{...styles.mainBtn, marginTop: '10px'}}>
+              Confirm & Log
+            </button>
+          </div>
+        </div>
+      )}
       {/* BOTTOM NAV (UPDATED WITH 5 TABS) */}
       <nav style={styles.bottomNav}>
         {['Workout', 'History', 'TDEE', 'Food', 'You'].map(tab => (
