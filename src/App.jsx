@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, setDoc, getDoc } from "firebase/firestore";
-
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 // 1. YOUR FIREBASE CONFIGURATION
 // Replace this with the config from your Firebase Console
 const firebaseConfig = {
@@ -60,6 +60,13 @@ export default function App() {
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  // --- COACHING MODULE STATES ---
+  const [profileAge, setProfileAge] = useState(20);
+  const [profileHeight, setProfileHeight] = useState(170);
+  const [profileGender, setProfileGender] = useState('male');
+  const [profileActivity, setProfileActivity] = useState(1.2);
+  const [profileGoal, setProfileGoal] = useState('maintain');
+  const [targetMacros, setTargetMacros] = useState(null);
 // --- DYNAMIC TDEE STATES ---
   const [dailyWeight, setDailyWeight] = useState('');
 //  const [dailyCalories, setDailyCalories] = useState('');
@@ -141,6 +148,60 @@ export default function App() {
   const getTodayDocId = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  // MODULE 4: Goal Setting & Macro Coaching Engine
+  const calculateCoachingMacros = () => {
+    if (!dailyWeight) return alert("Please log your weight today first to calculate macros!");
+    const weight = parseFloat(dailyWeight);
+    const height = parseFloat(profileHeight);
+    const age = parseInt(profileAge);
+
+    // Mifflin-St Jeor Equation
+    let bmr = (10 * weight) + (6.25 * height) - (5 * age);
+    bmr += profileGender === 'male' ? 5 : -161;
+
+    let targetTDEE = bmr * parseFloat(profileActivity);
+
+    // Apply Goal Modifiers
+    if (profileGoal === 'cut') targetTDEE -= 500; // -0.5kg/week
+    if (profileGoal === 'bulk') targetTDEE += 300; // +0.25kg/week
+
+    targetTDEE = Math.round(targetTDEE);
+
+    // Macro Split (Prioritize Protein: 2.2g/kg, Fat: 1g/kg)
+    const protein = Math.round(weight * 2.2);
+    const fat = Math.round(weight * 1.0);
+    
+    // Remaining calories for Carbs
+    const remainingKcal = targetTDEE - (protein * 4) - (fat * 9);
+    const carbs = remainingKcal > 0 ? Math.round(remainingKcal / 4) : 0;
+
+    setTargetMacros({ kcal: targetTDEE, protein, fat, carbs });
+  };
+
+  // MODULE 3: Exponential Moving Average (EMA) Chart Data Generator
+  const generateTrendData = () => {
+    if (dailyLogs.length === 0) return [];
+
+    // Sort chronologically (oldest first)
+    const chronologicalLogs = [...dailyLogs].reverse();
+    const alpha = 2 / (7 + 1); // 7-day smoothing period
+    
+    let currentEMA = chronologicalLogs[0].weight; // Baseline is the first weight log
+
+    return chronologicalLogs.map((log) => {
+      const actualWeight = parseFloat(log.weight || currentEMA);
+      currentEMA = (alpha * actualWeight) + ((1 - alpha) * currentEMA);
+      
+      // Keep short date for X-Axis (e.g., "5/1")
+      const shortDate = new Date(log.date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+      
+      return {
+        date: shortDate,
+        Actual: actualWeight,
+        Trend: parseFloat(currentEMA.toFixed(2))
+      };
+    });
   };
 
   const deleteDailyLog = async (logId) => {
@@ -604,7 +665,30 @@ export default function App() {
               </p>
               {!dynamicTDEE && <p style={{fontSize: '12px', color: '#8E8E93', marginTop: '10px'}}>A minimum of 7 days logged is required for accurate algorithm calibration.</p>}
             </div>
-
+            {/* MODULE 3: Weight Trend Analysis Chart */}
+            {dailyLogs.length >= 2 && (
+              <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '30px'}}>
+                <h3 style={{margin: '0 0 15px 0', fontSize: '18px', color: '#FFF'}}>Weight Trend Analysis</h3>
+                <div style={{height: '250px', width: '100%'}}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={generateTrendData()} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#2C2C2E" vertical={false} />
+                      <XAxis dataKey="date" stroke="#8E8E93" fontSize={12} tickLine={false} />
+                      <YAxis stroke="#8E8E93" fontSize={12} tickLine={false} domain={['dataMin - 1', 'dataMax + 1']} />
+                      <Tooltip contentStyle={{backgroundColor: '#0A0A0A', border: '1px solid #2C2C2E', borderRadius: '8px', color: '#FFF'}} itemStyle={{color: '#FFF'}} />
+                      <Legend wrapperStyle={{fontSize: '12px', paddingTop: '10px'}} />
+                      
+                      {/* Actual Weight (Dotted, Faded) */}
+                      <Line type="monotone" dataKey="Actual" stroke="#8E8E93" strokeWidth={2} strokeDasharray="5 5" dot={{r: 3, fill: '#8E8E93'}} name="Scale Weight" />
+                      
+                      {/* Trend Weight (Solid, Highlighted) */}
+                      <Line type="monotone" dataKey="Trend" stroke="#0A84FF" strokeWidth={3} dot={false} activeDot={{r: 6}} name="True Trend (EMA)" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <p style={{fontSize: '11px', color: '#8E8E93', textAlign: 'center', marginTop: '10px'}}>The blue line represents your true weight trend, filtering out water retention and noise.</p>
+              </div>
+            )}
             {/* Daily Weight Input Only */}
             <h3 style={{fontSize: '18px', marginBottom: '15px', textAlign: 'left', color: '#FFF'}}>Daily Check-in</h3>
             <div style={{display: 'flex', gap: '10px', marginBottom: '20px'}}>
@@ -704,6 +788,62 @@ export default function App() {
         {/* --- PROFILE TAB (CLEANED UP) --- */}
         {activeTab === 'you' && (
           <div style={{padding: '20px', textAlign: 'center'}}>
+            {/* MODULE 4: Coaching Module */}
+            <h2 style={{fontSize: '24px', marginBottom: '20px', textAlign: 'center'}}>AI Coaching Setup</h2>
+            <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '30px', textAlign: 'left'}}>
+              
+              <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
+                <div style={{flex: 1}}>
+                  <label style={{fontSize: '12px', color: '#8E8E93'}}>Age</label>
+                  <input type="number" value={profileAge} onChange={(e) => setProfileAge(e.target.value)} style={{...styles.authInput, padding: '10px'}} />
+                </div>
+                <div style={{flex: 1}}>
+                  <label style={{fontSize: '12px', color: '#8E8E93'}}>Height (cm)</label>
+                  <input type="number" value={profileHeight} onChange={(e) => setProfileHeight(e.target.value)} style={{...styles.authInput, padding: '10px'}} />
+                </div>
+              </div>
+
+              <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
+                <select value={profileGender} onChange={(e) => setProfileGender(e.target.value)} style={{...styles.authInput, appearance: 'none', padding: '10px', flex: 1}}>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+                <select value={profileActivity} onChange={(e) => setProfileActivity(e.target.value)} style={{...styles.authInput, appearance: 'none', padding: '10px', flex: 1}}>
+                  <option value={1.2}>Sedentary</option>
+                  <option value={1.375}>Light Active</option>
+                  <option value={1.55}>Moderately Active</option>
+                  <option value={1.725}>Very Active</option>
+                </select>
+              </div>
+
+              <select value={profileGoal} onChange={(e) => setProfileGoal(e.target.value)} style={{...styles.authInput, appearance: 'none', padding: '10px', marginBottom: '15px'}}>
+                <option value="cut">Fat Loss (-500 kcal)</option>
+                <option value="maintain">Maintenance</option>
+                <option value="bulk">Muscle Gain (+300 kcal)</option>
+              </select>
+
+              <button onClick={calculateCoachingMacros} style={{...styles.mainBtn, backgroundColor: '#0A84FF', color: '#FFF'}}>Generate Plan</button>
+
+              {targetMacros && (
+                <div style={{marginTop: '20px', padding: '15px', backgroundColor: '#0A0A0A', borderRadius: '8px', border: '1px solid #34C759'}}>
+                  <p style={{textAlign: 'center', color: '#34C759', fontWeight: 'bold', fontSize: '18px', margin: '0 0 10px 0'}}>Target: {targetMacros.kcal} kcal</p>
+                  <div style={{display: 'flex', justifyContent: 'space-between', textAlign: 'center'}}>
+                    <div>
+                      <span style={{color: '#FF453A', display: 'block', fontWeight: 'bold'}}>{targetMacros.protein}g</span>
+                      <span style={{color: '#8E8E93', fontSize: '12px'}}>Protein</span>
+                    </div>
+                    <div>
+                      <span style={{color: '#32ADE6', display: 'block', fontWeight: 'bold'}}>{targetMacros.carbs}g</span>
+                      <span style={{color: '#8E8E93', fontSize: '12px'}}>Carbs</span>
+                    </div>
+                    <div>
+                      <span style={{color: '#FFD60A', display: 'block', fontWeight: 'bold'}}>{targetMacros.fat}g</span>
+                      <span style={{color: '#8E8E93', fontSize: '12px'}}>Fat</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
             <h2 style={{fontSize: '24px', marginBottom: '40px'}}>Account Details</h2>
             <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '20px'}}>
               <p style={{color: '#8E8E93', margin: '0 0 10px 0'}}>Logged in as:</p>
