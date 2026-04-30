@@ -252,6 +252,7 @@ export default function App() {
     return week;
   };
 
+  // Function to search generic foods via USDA FoodData Central API (Upgraded Nutrient Parsing)
   const searchFood = async () => {
     if (!foodSearch.trim()) return;
     setIsSearchingFood(true);
@@ -266,20 +267,22 @@ export default function App() {
       }
 
       const formattedResults = data.foods.map(p => {
-        const getNutrient = (id) => {
-          const nutrient = p.foodNutrients.find(n => n.nutrientId === id);
+        // CẬP NHẬT: Quét chéo cả ID mới lẫn Number cũ để không sót Macros
+        const getNutrient = (id, num) => {
+          const nutrient = p.foodNutrients.find(n => n.nutrientId === id || n.nutrientNumber === num);
           return nutrient ? Math.round(nutrient.value) : 0;
         };
+        
         const cleanName = p.description.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
 
         return {
           id: p.fdcId,
           name: cleanName,
           brand: "(Generic/Raw Food)",
-          kcal: getNutrient(1008), 
-          protein: getNutrient(1003), 
-          fat: getNutrient(1004), 
-          carbs: getNutrient(1005) 
+          kcal: getNutrient(1008, '208'), // Energy
+          protein: getNutrient(1003, '203'), // Protein
+          fat: getNutrient(1004, '204'), // Total Lipid (Fat)
+          carbs: getNutrient(1005, '205') // Carbohydrate
         };
       }).filter(food => food.kcal > 0); 
 
