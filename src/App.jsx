@@ -62,6 +62,7 @@ export default function App() {
   const [seconds, setSeconds] = useState(0);
   // --- COACHING MODULE STATES ---
   const [profileAge, setProfileAge] = useState(20);
+  const [profileWeight, setProfileWeight] = useState(70);
   const [profileHeight, setProfileHeight] = useState(170);
   const [profileGender, setProfileGender] = useState('male');
   const [profileActivity, setProfileActivity] = useState(1.2);
@@ -151,8 +152,9 @@ export default function App() {
   };
   // MODULE 4: Goal Setting & Macro Coaching Engine
   const calculateCoachingMacros = () => {
-    if (!dailyWeight) return alert("Please log your weight today first to calculate macros!");
-    const weight = parseFloat(dailyWeight);
+    // Sửa điều kiện kiểm tra và gán biến weight
+    if (!profileWeight) return alert("Please enter your weight to calculate macros!");
+    const weight = parseFloat(profileWeight);
     const height = parseFloat(profileHeight);
     const age = parseInt(profileAge);
 
@@ -800,6 +802,10 @@ export default function App() {
                 <div style={{flex: 1}}>
                   <label style={{fontSize: '12px', color: '#8E8E93'}}>Height (cm)</label>
                   <input type="number" value={profileHeight} onChange={(e) => setProfileHeight(e.target.value)} style={{...styles.authInput, padding: '10px'}} />
+                </div>
+                <div style={{flex: 1}}>
+                  <label style={{fontSize: '12px', color: '#8E8E93'}}>Weight (kg)</label>
+                  <input type="number" value={profileWeight} onChange={(e) => setProfileWeight(e.target.value)} style={{...styles.authInput, padding: '10px'}} />
                 </div>
               </div>
 
