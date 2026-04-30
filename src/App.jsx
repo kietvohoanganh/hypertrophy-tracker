@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc } from "firebase/firestore";
+import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, setDoc, getDoc } from "firebase/firestore";
 
 // 1. YOUR FIREBASE CONFIGURATION
 // Replace this with the config from your Firebase Console
@@ -62,14 +62,14 @@ export default function App() {
   const [seconds, setSeconds] = useState(0);
 // --- DYNAMIC TDEE STATES ---
   const [dailyWeight, setDailyWeight] = useState('');
-  const [dailyCalories, setDailyCalories] = useState('');
+//  const [dailyCalories, setDailyCalories] = useState('');
   const [dailyLogs, setDailyLogs] = useState([]);
   const [dynamicTDEE, setDynamicTDEE] = useState(null);
   // --- NUTRITION MODAL STATES ---
   const [selectedFood, setSelectedFood] = useState(null);
   const [foodWeight, setFoodWeight] = useState(100);
   const [cookingMethod, setCookingMethod] = useState('raw_boiled');
-  const [consumedFoods, setConsumedFoods] = useState([]);
+//  const [consumedFoods, setConsumedFoods] = useState([]);
   // New granular seasoning state
   const [activeSeasonings, setActiveSeasonings] = useState({});
   // --- USE EFFECTS ---
@@ -133,53 +133,39 @@ export default function App() {
     setPrevData(newPrevData);
   }
 }, [activeWorkout, isWorkoutActive, workoutHistory]);
-  // --- HELPER FUNCTIONS ---
-  // Function to save daily metrics to Firebase
-const logDailyMetrics = async () => {
-  if (!dailyWeight || !dailyCalories) return alert("Please enter both your weight and caloric intake!");
-  try {
-    await addDoc(collection(db, "users", user.uid, "daily_logs"), {
-      timestamp: Date.now(),
-      date: new Date().toLocaleDateString('en-US'),
-      weight: parseFloat(dailyWeight),
-      calories: parseFloat(dailyCalories),
-      foods: consumedFoods // <-- ĐÍNH KÈM DANH SÁCH MÓN ĂN VÀO ĐÂY
-    });
-    setDailyWeight('');
-    setDailyCalories('');
-    setConsumedFoods([]); // <-- XÓA TRẮNG DANH SÁCH TẠM
-    alert("Daily metrics logged successfully!");
-  } catch (e) {
-    alert("Error logging data: " + e.message);
-  }
-};
-const deleteDailyLog = async (logId) => {
-  if (window.confirm("Delete this daily log from your history? This cannot be undone.")) {
-    try {
-      await deleteDoc(doc(db, "users", user.uid, "daily_logs", logId));
-    } catch (error) { 
-      alert("Failed to delete log: " + error.message); 
+// --- HELPER FUNCTIONS ---
+
+  const getTodayDocId = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  const deleteDailyLog = async (logId) => {
+    if (window.confirm("Delete this daily log from your history? This cannot be undone.")) {
+      try {
+        await deleteDoc(doc(db, "users", user.uid, "daily_logs", logId));
+      } catch (error) { 
+        alert("Failed to delete log: " + error.message); 
+      }
     }
-  }
-};
+  };
 
-// Dynamic TDEE Algorithm (14-day Sliding Window)
-const calculateDynamicTDEE = (logs, windowSize = 14) => {
-  // Retrieve the most recent N days (array is sorted descendingly, index 0 is the newest)
-  const windowLogs = logs.slice(0, windowSize);
-  const N = windowLogs.length;
-  
-  if (N < 7) return; // Require at least 7 days to mitigate data noise
+  // Dynamic TDEE Algorithm (14-day Sliding Window)
+  const calculateDynamicTDEE = (logs, windowSize = 14) => {
+    const windowLogs = logs.slice(0, windowSize);
+    const N = windowLogs.length;
+    
+    if (N < 7) return; 
 
-  const totalCalories = windowLogs.reduce((sum, log) => sum + log.calories, 0);
-  
-  const newestWeight = windowLogs[0].weight;
-  const oldestWeight = windowLogs[N - 1].weight;
-  const deltaW = newestWeight - oldestWeight; 
+    const totalCalories = windowLogs.reduce((sum, log) => sum + log.calories, 0);
+    const newestWeight = windowLogs[0].weight;
+    const oldestWeight = windowLogs[N - 1].weight;
+    const deltaW = newestWeight - oldestWeight; 
 
-  const calculatedTDEE = (totalCalories - (deltaW * 7700)) / N;
-  setDynamicTDEE(Math.round(calculatedTDEE));
-};
+    const calculatedTDEE = (totalCalories - (deltaW * 7700)) / N;
+    setDynamicTDEE(Math.round(calculatedTDEE));
+  };
+
   const formatTime = (totalSeconds) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
@@ -188,7 +174,6 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
 
   const getCurrentWeek = () => {
     const curr = new Date();
-    // Shift the baseline date by the offset multiplier (7 days per week)
     curr.setDate(curr.getDate() + (weekOffset * 7));
     
     const first = curr.getDate() - curr.getDay() + (curr.getDay() === 0 ? -6 : 1); 
@@ -198,7 +183,6 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
       let next = new Date(curr.getTime());
       next.setDate(first + i);
       
-      // Strict validation to ensure the "Today" border only highlights the actual current day
       const realToday = new Date();
       const isActuallyToday = realToday.getDate() === next.getDate() && 
                               realToday.getMonth() === next.getMonth() && 
@@ -219,8 +203,6 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
     if (!foodSearch.trim()) return;
     setIsSearchingFood(true);
     try {
-      // Endpoint using 'Foundation' and 'SR Legacy' to prioritize raw/common foods
-      // NOTE: Using DEMO_KEY for testing. For production, get a free key at fdc.nal.usda.gov
       const response = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=DEMO_KEY&query=${encodeURIComponent(foodSearch)}&dataType=Foundation,SR%20Legacy&pageSize=10`);
       const data = await response.json();
 
@@ -230,27 +212,23 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
         return;
       }
 
-      // Filter and map USDA nutrient data
       const formattedResults = data.foods.map(p => {
-        // USDA stores nutrients in an array. We extract them by their specific ID.
         const getNutrient = (id) => {
           const nutrient = p.foodNutrients.find(n => n.nutrientId === id);
           return nutrient ? Math.round(nutrient.value) : 0;
         };
-
-        // Convert ALL CAPS names to Title Case for better UI reading
         const cleanName = p.description.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
 
         return {
           id: p.fdcId,
           name: cleanName,
           brand: "(Generic/Raw Food)",
-          kcal: getNutrient(1008), // Nutrient ID for Energy (kcal)
-          protein: getNutrient(1003), // Nutrient ID for Protein
-          fat: getNutrient(1004), // Nutrient ID for Total Lipid
-          carbs: getNutrient(1005) // Nutrient ID for Carbohydrate
+          kcal: getNutrient(1008), 
+          protein: getNutrient(1003), 
+          fat: getNutrient(1004), 
+          carbs: getNutrient(1005) 
         };
-      }).filter(food => food.kcal > 0); // Clean up empty data entries
+      }).filter(food => food.kcal > 0); 
 
       setFoodResults(formattedResults);
     } catch (error) {
@@ -259,64 +237,99 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
     setIsSearchingFood(false);
   };
 
-  // Function to quickly add food macros to today's log (Standardized per 100g)
   // Open the modal to customize food details and reset states
   const openFoodModal = (food) => {
     setSelectedFood(food);
     setFoodWeight(100);
     setCookingMethod('raw_boiled');
     
-    // Reset all seasonings to false
     const initialSeasonings = {};
     SEASONING_DATABASE.forEach(s => { initialSeasonings[s.key] = false; });
     setActiveSeasonings(initialSeasonings);
   };
 
-  // Calculate modifiers and add to today's log
-  const confirmAndLogFood = () => {
+  // Automatically calculate, aggregate duplicates, and sync directly to Firebase
+  const confirmAndLogFood = async () => {
     if (!selectedFood) return;
 
-    // Cooking Method Modifiers (per 100g)
-    const cookingModifiers = {
-      raw_boiled: 0,
-      grilled: 20, 
-      stir_fried: 50, 
-      deep_fried: 100 
-    };
-
-    // Granular Seasoning Modifier Calculation (per 100g)
+    const cookingModifiers = { raw_boiled: 0, grilled: 20, stir_fried: 50, deep_fried: 100 };
     let totalSeasoningKcal = 0;
     SEASONING_DATABASE.forEach(seasoning => {
-      if (activeSeasonings[seasoning.key]) {
-        totalSeasoningKcal += seasoning.kcal;
-      }
+      if (activeSeasonings[seasoning.key]) totalSeasoningKcal += seasoning.kcal;
     });
 
-    // Calculation Engine
     const weightRatio = parseFloat(foodWeight) / 100;
     const baseKcal = selectedFood.kcal;
     const extraKcal = cookingModifiers[cookingMethod] + totalSeasoningKcal;
-    
     const finalCalculatedKcal = Math.round((baseKcal + extraKcal) * weightRatio);
 
-    // Update the overarching daily calories state
-    const currentCal = parseFloat(dailyCalories) || 0;
-    setDailyCalories(currentCal + finalCalculatedKcal); 
-    
-    const newFood = {
-      name: selectedFood.name,
-      weight: foodWeight,
-      kcal: finalCalculatedKcal,
-      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    };
-    setConsumedFoods(prev => [...prev, newFood]);
+    const todayId = getTodayDocId();
+    const logRef = doc(db, "users", user.uid, "daily_logs", todayId);
 
-    alert(`Logged ${foodWeight}g of ${selectedFood.name} (${finalCalculatedKcal} kcal calculated).`);
+    try {
+      const docSnap = await getDoc(logRef);
+      let currentFoods = [];
+      let currentCalories = 0;
+      let currentWeight = ''; 
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        currentFoods = data.foods || [];
+        currentCalories = data.calories || 0;
+        currentWeight = data.weight || '';
+      }
+
+      const existingFoodIndex = currentFoods.findIndex(f => f.name === selectedFood.name);
+      
+      if (existingFoodIndex >= 0) {
+        currentFoods[existingFoodIndex].weight += parseFloat(foodWeight);
+        currentFoods[existingFoodIndex].kcal += finalCalculatedKcal;
+        currentFoods[existingFoodIndex].time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      } else {
+        currentFoods.push({
+          name: selectedFood.name,
+          weight: parseFloat(foodWeight),
+          kcal: finalCalculatedKcal,
+          time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        });
+      }
+
+      await setDoc(logRef, {
+        timestamp: docSnap.exists() ? docSnap.data().timestamp : Date.now(),
+        date: new Date().toLocaleDateString('en-US'),
+        foods: currentFoods,
+        calories: currentCalories + finalCalculatedKcal,
+        weight: currentWeight
+      }, { merge: true });
+
+      alert(`Added ${foodWeight}g of ${selectedFood.name}. Database synced automatically!`);
+      setSelectedFood(null);
+      setFoodSearch('');
+      setFoodResults([]);
+    } catch (e) {
+      alert("Database Error: " + e.message);
+    }
+  };
+
+  // Function to independently update body weight for the current day
+  const updateDailyWeight = async () => {
+    if (!dailyWeight) return alert("Please enter your weight!");
     
-    // Reset and close modal
-    setSelectedFood(null);
-    setFoodSearch('');
-    setFoodResults([]);
+    const todayId = getTodayDocId();
+    const logRef = doc(db, "users", user.uid, "daily_logs", todayId);
+
+    try {
+      await setDoc(logRef, {
+        timestamp: Date.now(), 
+        date: new Date().toLocaleDateString('en-US'),
+        weight: parseFloat(dailyWeight)
+      }, { merge: true });
+      
+      alert("Body weight updated securely!");
+      setDailyWeight('');
+    } catch (e) {
+      alert("Database Error: " + e.message);
+    }
   };
   // --- WORKOUT LOGIC ---
   const startWorkout = () => { setIsWorkoutActive(true); setSeconds(0); setActiveWorkout({}); };
@@ -587,40 +600,21 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
               {!dynamicTDEE && <p style={{fontSize: '12px', color: '#8E8E93', marginTop: '10px'}}>A minimum of 7 days logged is required for accurate algorithm calibration.</p>}
             </div>
 
-            {/* Daily Input Form */}
-            <h3 style={{fontSize: '18px', marginBottom: '15px', textAlign: 'left', color: '#FFF'}}>Today's Entry</h3>
-            
-            {/* Hiển thị các món ăn vừa thêm vào trong ngày (Staging) */}
-            {consumedFoods.length > 0 && (
-              <div style={{backgroundColor: '#0A0A0A', padding: '15px', borderRadius: '8px', border: '1px solid #1C1C1E', marginBottom: '15px'}}>
-                <p style={{fontSize: '14px', color: '#8E8E93', margin: '0 0 10px 0'}}>Foods Queued for Logging:</p>
-                {consumedFoods.map((food, idx) => (
-                  <div key={idx} style={{display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px'}}>
-                    <span style={{color: '#FFF'}}>{food.weight}g {food.name}</span>
-                    <span style={{color: '#34C759', fontWeight: 'bold'}}>{food.kcal} kcal</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <input 
-              type="number" 
-              placeholder="Today's Weight (kg)" 
-              value={dailyWeight} 
-              onChange={(e) => setDailyWeight(e.target.value)} 
-              style={styles.authInput} 
-            />
-            <input 
-              type="number" 
-              placeholder="Total Caloric Intake (kcal)" 
-              value={dailyCalories} 
-              onChange={(e) => setDailyCalories(e.target.value)} 
-              style={styles.authInput} 
-            />
-            <button onClick={logDailyMetrics} style={styles.mainBtn}>Confirm & Log Daily Metrics</button>
+            {/* Daily Weight Input Only */}
+            <h3 style={{fontSize: '18px', marginBottom: '15px', textAlign: 'left', color: '#FFF'}}>Daily Check-in</h3>
+            <div style={{display: 'flex', gap: '10px', marginBottom: '20px'}}>
+              <input 
+                type="number" 
+                placeholder="Today's Body Weight (kg)" 
+                value={dailyWeight} 
+                onChange={(e) => setDailyWeight(e.target.value)} 
+                style={{...styles.authInput, marginBottom: 0, flex: 1}} 
+              />
+              <button onClick={updateDailyWeight} style={{...styles.mainBtn, width: '100px', borderRadius: '8px'}}>Update</button>
+            </div>
 
             {/* Caloric Intake History */}
-            <h3 style={{fontSize: '20px', marginTop: '40px', marginBottom: '20px'}}>Caloric Intake History</h3>
+            <h3 style={{fontSize: '20px', marginTop: '40px', marginBottom: '20px'}}>Intake History</h3>
             {dailyLogs.length === 0 ? (
               <p style={{color: '#8E8E93', textAlign: 'center'}}>No history available.</p>
             ) : (
@@ -630,8 +624,8 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%'}}>
                       <div>
                         <p style={{margin: 0, fontWeight: 'bold', fontSize: '18px'}}>{log.date}</p>
-                        <p style={{margin: '5px 0 0 0', color: '#34C759', fontWeight: 'bold', fontSize: '16px'}}>{log.calories} kcal</p>
-                        <p style={{margin: '5px 0 0 0', color: '#8E8E93', fontSize: '14px'}}>Body Weight: {log.weight} kg</p>
+                        <p style={{margin: '5px 0 0 0', color: '#34C759', fontWeight: 'bold', fontSize: '16px'}}>{log.calories || 0} kcal</p>
+                        <p style={{margin: '5px 0 0 0', color: '#8E8E93', fontSize: '14px'}}>Body Weight: {log.weight || 'Not logged'} {log.weight ? 'kg' : ''}</p>
                       </div>
                       <button onClick={() => deleteDailyLog(log.id)} style={styles.deleteBtn}>Delete</button>
                     </div>
@@ -657,7 +651,6 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
             )}
           </div>
         )}
-
         {/* --- MODULE 2: NUTRITION TAB --- */}
         {/* --- MODULE 2: NUTRITION TAB --- */}
         {activeTab === 'food' && (
