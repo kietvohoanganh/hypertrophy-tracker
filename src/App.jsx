@@ -45,6 +45,8 @@ const SEASONING_DATABASE = [
 ];
 export default function App() {
   // --- STATE MANAGEMENT ---
+  // --- MENU STATE ---
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [email, setEmail] = useState('');
@@ -499,6 +501,14 @@ export default function App() {
 
   return (
     <div style={styles.appContainer}>
+      {/* GLOBAL HEADER & MENU BUTTON */}
+      {!isWorkoutActive && (
+        <header style={styles.globalHeader}>
+          <h1 style={{margin: 0, fontSize: '20px', color: '#0A84FF', fontWeight: 'bold'}}>Elite Tracker</h1>
+          <button onClick={() => setIsMenuOpen(true)} style={styles.menuButton}>☰</button>
+        </header>
+      )}
+
       <div style={styles.contentScroll}>
         
         {/* WORKOUT TAB */}
@@ -859,7 +869,7 @@ export default function App() {
           </div>
         )}
       </div>
-
+      
       {/* EXERCISE MODAL */}
       {showExerciseModal && (
         <div style={styles.modalOverlay}>
@@ -898,6 +908,32 @@ export default function App() {
                   </div>
                 ))}
               </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* SLIDE-IN MENU OVERLAY */}
+      {isMenuOpen && (
+        <div style={styles.menuOverlay} onClick={() => setIsMenuOpen(false)}>
+          <div style={styles.menuContent} onClick={(e) => e.stopPropagation()}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px'}}>
+              <h2 style={{margin: 0, color: '#8E8E93', fontSize: '14px', letterSpacing: '2px'}}>NAVIGATION</h2>
+              <span onClick={() => setIsMenuOpen(false)} style={styles.closeMenuBtn}>✕</span>
+            </div>
+            
+            {['Workout', 'History', 'TDEE', 'Food', 'You'].map(tab => (
+              <button 
+                key={tab} 
+                onClick={() => { setActiveTab(tab.toLowerCase()); setIsMenuOpen(false); }} 
+                style={{
+                  ...styles.menuItem, 
+                  color: activeTab === tab.toLowerCase() ? '#0A84FF' : '#FFFFFF',
+                  borderLeft: activeTab === tab.toLowerCase() ? '4px solid #0A84FF' : '4px solid transparent',
+                  paddingLeft: activeTab === tab.toLowerCase() ? '16px' : '20px'
+                }}
+              >
+                {tab}
+              </button>
             ))}
           </div>
         </div>
@@ -961,14 +997,7 @@ export default function App() {
         </div>
       )}
       {/* BOTTOM NAV (UPDATED WITH 5 TABS) */}
-      <nav style={styles.bottomNav}>
-        {['Workout', 'History', 'TDEE', 'Food', 'You'].map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab.toLowerCase())} 
-            style={{...styles.navBtn, color: activeTab === tab.toLowerCase() ? '#FFFFFF' : '#48484A'}}>
-            {tab}
-          </button>
-        ))}
-      </nav>
+      
     </div>
   );
 }
@@ -976,7 +1005,7 @@ export default function App() {
 // 3. DESIGN SYSTEM 
 const styles = {
   appContainer: { display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#000000', color: '#FFFFFF', fontFamily: '-apple-system, sans-serif' },
-  contentScroll: { flex: 1, overflowY: 'auto', paddingBottom: '90px' },
+  contentScroll: { flex: 1, overflowY: 'auto', paddingBottom: '20px' }, // Đã đổi thành 20px vì bỏ Bottom Nav
   authInput: { width: '100%', padding: '15px', marginBottom: '15px', backgroundColor: '#1C1C1E', color: '#FFF', border: 'none', borderRadius: '8px', fontSize: '16px' },
   authButton: { width: '100%', padding: '15px', backgroundColor: '#0A84FF', color: '#FFF', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' },
   timerText: { fontSize: '48px', fontWeight: 'bold', textAlign: 'center', margin: '0 0 30px 0' },
@@ -986,10 +1015,17 @@ const styles = {
   deleteBtn: { backgroundColor: 'rgba(255, 69, 58, 0.1)', color: '#FF453A', border: 'none', borderRadius: '6px', padding: '8px 12px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' },
   calendarContainer: { display: 'flex', justifyContent: 'space-between', backgroundColor: '#0A0A0A', padding: '15px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #1C1C1E' },
   calendarDay: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '40px', height: '55px', borderRadius: '8px' },
-  bottomNav: { display: 'flex', justifyContent: 'space-around', padding: '15px 0 25px 0', backgroundColor: '#000', borderTop: '1px solid #1C1C1E', position: 'fixed', bottom: 0, width: '100%', zIndex: 50 },
-  navBtn: { backgroundColor: 'transparent', border: 'none', fontWeight: '600', fontSize: '12px', textTransform: 'uppercase', cursor: 'pointer' },
   historyCard: { backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '15px' },
   historyHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #2C2C2E', paddingBottom: '15px', marginBottom: '15px' },
+  
+  // --- NEW MENU STYLES ---
+  // --- NEW MENU STYLES ---
+  globalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', backgroundColor: '#0A0A0A', borderBottom: '1px solid #1C1C1E', zIndex: 40 },
+  menuButton: { background: 'transparent', border: 'none', color: '#FFFFFF', fontSize: '28px', cursor: 'pointer', padding: 0 },
+  menuOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', justifyContent: 'flex-end', backdropFilter: 'blur(4px)' },
+  menuContent: { backgroundColor: '#1C1C1E', width: '250px', height: '100%', padding: '20px 0', display: 'flex', flexDirection: 'column', borderLeft: '1px solid #2C2C2E', boxShadow: '-5px 0 15px rgba(0,0,0,0.5)' },
+  closeMenuBtn: { fontSize: '24px', color: '#8E8E93', cursor: 'pointer', paddingRight: '20px' },
+  menuItem: { background: 'transparent', border: 'none', fontSize: '22px', fontWeight: 'bold', textAlign: 'left', cursor: 'pointer', padding: '15px 20px', transition: 'all 0.2s', width: '100%' },
   
   // --- NEW HISTORY DETAILS STYLES ---
   historyExerciseBlock: { marginTop: '10px', backgroundColor: '#0A0A0A', borderRadius: '8px', padding: '12px' },
