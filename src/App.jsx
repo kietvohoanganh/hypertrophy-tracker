@@ -44,7 +44,11 @@ export default function App() {
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [seconds, setSeconds] = useState(0);
-
+// --- DYNAMIC TDEE STATES ---
+  const [dailyWeight, setDailyWeight] = useState('');
+  const [dailyCalories, setDailyCalories] = useState('');
+  const [dailyLogs, setDailyLogs] = useState([]);
+  const [dynamicTDEE, setDynamicTDEE] = useState(null);
   // --- USE EFFECTS ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -53,6 +57,21 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+  useEffect(() => {
+  if (user) {
+    const logsQuery = query(collection(db, "users", user.uid, "daily_logs"), orderBy("timestamp", "desc"));
+    const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
+      const logsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setDailyLogs(logsData);
+      
+      // Kích hoạt tính toán TDEE khi có dữ liệu (Ví dụ: Cần tối thiểu 7 ngày)
+      if (logsData.length >= 7) {
+        calculateDynamicTDEE(logsData);
+      }
+    });
+    return () => unsubscribe();
+  }
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -92,6 +111,41 @@ export default function App() {
   }
 }, [activeWorkout, isWorkoutActive, workoutHistory]);
   // --- HELPER FUNCTIONS ---
+  // Function to save daily metrics to Firebase
+const logDailyMetrics = async () => {
+  if (!dailyWeight || !dailyCalories) return alert("Please enter both your weight and caloric intake!");
+  try {
+    await addDoc(collection(db, "users", user.uid, "daily_logs"), {
+      timestamp: Date.now(),
+      date: new Date().toLocaleDateString('en-US'),
+      weight: parseFloat(dailyWeight),
+      calories: parseFloat(dailyCalories)
+    });
+    setDailyWeight('');
+    setDailyCalories('');
+    alert("Daily metrics logged successfully!");
+  } catch (e) {
+    alert("Error logging data: " + e.message);
+  }
+};
+
+// Dynamic TDEE Algorithm (14-day Sliding Window)
+const calculateDynamicTDEE = (logs, windowSize = 14) => {
+  // Retrieve the most recent N days (array is sorted descendingly, index 0 is the newest)
+  const windowLogs = logs.slice(0, windowSize);
+  const N = windowLogs.length;
+  
+  if (N < 7) return; // Require at least 7 days to mitigate data noise
+
+  const totalCalories = windowLogs.reduce((sum, log) => sum + log.calories, 0);
+  
+  const newestWeight = windowLogs[0].weight;
+  const oldestWeight = windowLogs[N - 1].weight;
+  const deltaW = newestWeight - oldestWeight; 
+
+  const calculatedTDEE = (totalCalories - (deltaW * 7700)) / N;
+  setDynamicTDEE(Math.round(calculatedTDEE));
+};
   const formatTime = (totalSeconds) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
@@ -383,16 +437,46 @@ export default function App() {
 
         {/* PROFILE TAB */}
         {activeTab === 'you' && (
-          <div style={{padding: '20px', textAlign: 'center'}}>
-            <h2 style={{fontSize: '24px', marginBottom: '40px'}}>Profile</h2>
-            <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '20px'}}>
-              <p style={{color: '#8E8E93', margin: '0 0 10px 0'}}>Logged in as:</p>
-              <p style={{fontSize: '18px', fontWeight: 'bold', margin: 0}}>{user.email}</p>
-            </div>
-            <button onClick={() => signOut(auth)} style={{...styles.authButton, backgroundColor: '#FF453A'}}>Sign Out</button>
-          </div>
-        )}
+  <div style={{padding: '20px', textAlign: 'center'}}>
+    <h2 style={{fontSize: '24px', marginBottom: '20px'}}>Metabolism Engine</h2>
+    
+    {/* TDEE Display Board */}
+    <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '30px'}}>
+      <p style={{color: '#8E8E93', margin: '0 0 10px 0'}}>Actual TDEE (Dynamic):</p>
+      <p style={{fontSize: '36px', fontWeight: 'bold', color: '#0A84FF', margin: 0}}>
+        {dynamicTDEE ? `${dynamicTDEE} kcal` : "Collecting data..."}
+      </p>
+      {!dynamicTDEE && <p style={{fontSize: '12px', color: '#8E8E93', marginTop: '10px'}}>A minimum of 7 days logged is required for accurate algorithm calibration.</p>}
+    </div>
+
+    {/* Input Form */}
+    <h3 style={{fontSize: '18px', marginBottom: '15px', textAlign: 'left'}}>Daily Log</h3>
+    <input 
+      type="number" 
+      placeholder="Today's Weight (kg)" 
+      value={dailyWeight} 
+      onChange={(e) => setDailyWeight(e.target.value)} 
+      style={styles.authInput} 
+    />
+    <input 
+      type="number" 
+      placeholder="Total Caloric Intake (kcal)" 
+      value={dailyCalories} 
+      onChange={(e) => setDailyCalories(e.target.value)} 
+      style={styles.authInput} 
+    />
+    <button onClick={logDailyMetrics} style={styles.mainBtn}>Log Data</button>
+
+    <div style={{marginTop: '40px', borderTop: '1px solid #1C1C1E', paddingTop: '20px'}}>
+      <h2 style={{fontSize: '24px', marginBottom: '20px'}}>Account Details</h2>
+      <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '20px'}}>
+        <p style={{color: '#8E8E93', margin: '0 0 10px 0'}}>Logged in as:</p>
+        <p style={{fontSize: '18px', fontWeight: 'bold', margin: 0}}>{user.email}</p>
       </div>
+      <button onClick={() => signOut(auth)} style={{...styles.authButton, backgroundColor: '#FF453A'}}>Sign Out</button>
+    </div>
+  </div>
+)}
 
       {/* EXERCISE MODAL */}
       {showExerciseModal && (
