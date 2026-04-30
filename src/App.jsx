@@ -27,8 +27,22 @@ const EXERCISE_DATABASE = {
   "Legs": ["Barbell Squat", "High Bar Squat", "Front Squat", "Goblet Squat", "Hack Squat", "Leg Press", "Reverse Nordic", "Sissy Squat", "Leg Extensions", "Bulgarian Split Squat", "Front Foot Elevated Smith Lunge", "Seated Machine Adductor", "Romanian Deadlift (RDL)", "Stiff Legged Deadlift", "Single-Leg RDL", "Good Mornings", "Seated/Lying Leg Curl", "Glute-Ham Raise (GHR)", "Nordic Hamstring Curl", "Glute Thrust Machine", "Barbell Hip Thrust", "Sit Back Squat", "Deficit Reverse Lunge", "Cable Glute Kickbacks", "Weighted Step-Ups", "Seated Machine Abductor", "Calf Raises", "Standing Calf Raise", "Seated Calf Raise", "Tibialis Raise"],
   "Arms": ["Bicep Curls", "Triceps Pushdown", "Skull Crushers", "Hammer Curls", "Overhead Extension", "Dip Machine", "Decline Dumbbell Curl", "Incline Dumbbell Curl", "Superman Cable Curl"],
   "Core": ["Hanging Leg Raises", "Cable Crunches", "Plank"]
+  
 };
 
+// 4. SEASONING DATABASE (Estimated extra kcal per 100g of food)
+const SEASONING_DATABASE = [
+  { key: 'soySauce', label: 'Soy Sauce', kcal: 5 },
+  { key: 'fishSauce', label: 'Fish Sauce', kcal: 5 },
+  { key: 'msg', label: 'MSG / Bouillon', kcal: 0 },
+  { key: 'oysterSauce', label: 'Oyster Sauce', kcal: 15 },
+  { key: 'sugar', label: 'Added Sugar', kcal: 20 },
+  { key: 'sesameOil', label: 'Sesame Oil', kcal: 40 },
+  { key: 'chiliOil', label: 'Chili Oil (Sa Tế)', kcal: 45 },
+  { key: 'peanutSauce', label: 'Peanut Sauce', kcal: 50 },
+  { key: 'coconutMilk', label: 'Coconut Milk', kcal: 50 },
+  { key: 'scallionOil', label: 'Scallion Oil (Mỡ hành)', kcal: 60 }
+];
 export default function App() {
   // --- STATE MANAGEMENT ---
   const [user, setUser] = useState(null);
@@ -51,6 +65,12 @@ export default function App() {
   const [dailyCalories, setDailyCalories] = useState('');
   const [dailyLogs, setDailyLogs] = useState([]);
   const [dynamicTDEE, setDynamicTDEE] = useState(null);
+  // --- NUTRITION MODAL STATES ---
+  const [selectedFood, setSelectedFood] = useState(null);
+  const [foodWeight, setFoodWeight] = useState(100);
+  const [cookingMethod, setCookingMethod] = useState('raw_boiled');
+  // New granular seasoning state
+  const [activeSeasonings, setActiveSeasonings] = useState({});
   // --- USE EFFECTS ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -183,27 +203,44 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
     return week;
   };
 
-  // Function to search food via Open Food Facts API
+  // Function to search generic foods via USDA FoodData Central API
   const searchFood = async () => {
     if (!foodSearch.trim()) return;
     setIsSearchingFood(true);
     try {
-      const response = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(foodSearch)}&search_simple=1&action=process&json=1&page_size=8`);
+      // Endpoint using 'Foundation' and 'SR Legacy' to prioritize raw/common foods
+      // NOTE: Using DEMO_KEY for testing. For production, get a free key at fdc.nal.usda.gov
+      const response = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=DEMO_KEY&query=${encodeURIComponent(foodSearch)}&dataType=Foundation,SR%20Legacy&pageSize=10`);
       const data = await response.json();
-      
-      // Filter out products without calorie data and map to a clean object
-      const formattedResults = data.products
-        .filter(p => p.nutriments && p.nutriments['energy-kcal_100g'])
-        .map(p => ({
-          id: p._id,
-          name: p.product_name || "Unknown Food",
-          brand: p.brands ? `(${p.brands})` : "",
-          kcal: Math.round(p.nutriments['energy-kcal_100g']),
-          protein: Math.round(p.nutriments['proteins_100g'] || 0),
-          carbs: Math.round(p.nutriments['carbohydrates_100g'] || 0),
-          fat: Math.round(p.nutriments['fat_100g'] || 0)
-        }));
-        
+
+      if (!data.foods) {
+        setFoodResults([]);
+        setIsSearchingFood(false);
+        return;
+      }
+
+      // Filter and map USDA nutrient data
+      const formattedResults = data.foods.map(p => {
+        // USDA stores nutrients in an array. We extract them by their specific ID.
+        const getNutrient = (id) => {
+          const nutrient = p.foodNutrients.find(n => n.nutrientId === id);
+          return nutrient ? Math.round(nutrient.value) : 0;
+        };
+
+        // Convert ALL CAPS names to Title Case for better UI reading
+        const cleanName = p.description.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+
+        return {
+          id: p.fdcId,
+          name: cleanName,
+          brand: "(Generic/Raw Food)",
+          kcal: getNutrient(1008), // Nutrient ID for Energy (kcal)
+          protein: getNutrient(1003), // Nutrient ID for Protein
+          fat: getNutrient(1004), // Nutrient ID for Total Lipid
+          carbs: getNutrient(1005) // Nutrient ID for Carbohydrate
+        };
+      }).filter(food => food.kcal > 0); // Clean up empty data entries
+
       setFoodResults(formattedResults);
     } catch (error) {
       alert("Error fetching food database: " + error.message);
@@ -212,10 +249,53 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
   };
 
   // Function to quickly add food macros to today's log (Standardized per 100g)
-  const addFoodToLog = (food) => {
+  // Open the modal to customize food details and reset states
+  const openFoodModal = (food) => {
+    setSelectedFood(food);
+    setFoodWeight(100);
+    setCookingMethod('raw_boiled');
+    
+    // Reset all seasonings to false
+    const initialSeasonings = {};
+    SEASONING_DATABASE.forEach(s => { initialSeasonings[s.key] = false; });
+    setActiveSeasonings(initialSeasonings);
+  };
+
+  // Calculate modifiers and add to today's log
+  const confirmAndLogFood = () => {
+    if (!selectedFood) return;
+
+    // Cooking Method Modifiers (per 100g)
+    const cookingModifiers = {
+      raw_boiled: 0,
+      grilled: 20, 
+      stir_fried: 50, 
+      deep_fried: 100 
+    };
+
+    // Granular Seasoning Modifier Calculation (per 100g)
+    let totalSeasoningKcal = 0;
+    SEASONING_DATABASE.forEach(seasoning => {
+      if (activeSeasonings[seasoning.key]) {
+        totalSeasoningKcal += seasoning.kcal;
+      }
+    });
+
+    // Calculation Engine
+    const weightRatio = parseFloat(foodWeight) / 100;
+    const baseKcal = selectedFood.kcal;
+    const extraKcal = cookingModifiers[cookingMethod] + totalSeasoningKcal;
+    
+    const finalCalculatedKcal = Math.round((baseKcal + extraKcal) * weightRatio);
+
+    // Update the overarching daily calories state
     const currentCal = parseFloat(dailyCalories) || 0;
-    setDailyCalories(currentCal + food.kcal); // Automatically updates the input field
-    alert(`Added ${food.name} (${food.kcal} kcal / 100g) to today's intake!`);
+    setDailyCalories(currentCal + finalCalculatedKcal); 
+    
+    alert(`Logged ${foodWeight}g of ${selectedFood.name} (${finalCalculatedKcal} kcal calculated).`);
+    
+    // Reset and close modal
+    setSelectedFood(null);
     setFoodSearch('');
     setFoodResults([]);
   };
@@ -514,17 +594,34 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
             <h2 style={{fontSize: '24px', marginBottom: '20px', textAlign: 'center'}}>Nutrition Search</h2>
             
             <div style={{display: 'flex', gap: '10px', marginBottom: '15px'}}>
-              <input 
-                type="text" 
-                placeholder="Search food (e.g., banana, chicken)..." 
-                value={foodSearch} 
-                onChange={(e) => setFoodSearch(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && searchFood()}
-                style={{...styles.authInput, marginBottom: 0, flex: 1}} 
-              />
-              <button onClick={searchFood} style={{...styles.mainBtn, width: '80px', borderRadius: '8px'}}>
-                {isSearchingFood ? "..." : "Search"}
-              </button>
+              <label style={{display: 'block', margin: '20px 0 10px 0', fontWeight: 'bold'}}>Condiments & Seasonings (per 100g):</label>
+            <div style={{
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr', 
+              gap: '12px', 
+              backgroundColor: '#1C1C1E', 
+              padding: '15px', 
+              borderRadius: '8px',
+              marginBottom: '20px'
+            }}>
+              {SEASONING_DATABASE.map(seasoning => (
+                <div key={seasoning.key} style={{display: 'flex', alignItems: 'flex-start'}}>
+                  <input 
+                    type="checkbox" 
+                    id={`condiment_${seasoning.key}`}
+                    checked={activeSeasonings[seasoning.key] || false}
+                    onChange={(e) => setActiveSeasonings(prev => ({...prev, [seasoning.key]: e.target.checked}))}
+                    style={{width: '18px', height: '18px', marginRight: '8px', accentColor: '#0A84FF', flexShrink: 0, marginTop: '2px'}}
+                  />
+                  <label htmlFor={`condiment_${seasoning.key}`} style={{fontSize: '13px', cursor: 'pointer', lineHeight: '1.4'}}>
+                    <span style={{color: '#FFF', display: 'block'}}>{seasoning.label}</span>
+                    <span style={{color: '#8E8E93', fontSize: '11px'}}>
+                      {seasoning.kcal > 0 ? `+${seasoning.kcal} kcal` : '0 kcal'}
+                    </span>
+                  </label>
+                </div>
+              ))}
+            </div>
             </div>
 
             {/* Render Search Results */}
