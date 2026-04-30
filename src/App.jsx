@@ -35,7 +35,9 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
+  const [foodSearch, setFoodSearch] = useState('');
+  const [foodResults, setFoodResults] = useState([]);
+  const [isSearchingFood, setIsSearchingFood] = useState(false);
   const [activeTab, setActiveTab] = useState('workout'); 
   const [workoutHistory, setWorkoutHistory] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null); // The history filter state
@@ -129,6 +131,7 @@ const logDailyMetrics = async () => {
   }
 };
 
+
 // Dynamic TDEE Algorithm (14-day Sliding Window)
 const calculateDynamicTDEE = (logs, windowSize = 14) => {
   // Retrieve the most recent N days (array is sorted descendingly, index 0 is the newest)
@@ -180,6 +183,42 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
     return week;
   };
 
+  // Function to search food via Open Food Facts API
+  const searchFood = async () => {
+    if (!foodSearch.trim()) return;
+    setIsSearchingFood(true);
+    try {
+      const response = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(foodSearch)}&search_simple=1&action=process&json=1&page_size=8`);
+      const data = await response.json();
+      
+      // Filter out products without calorie data and map to a clean object
+      const formattedResults = data.products
+        .filter(p => p.nutriments && p.nutriments['energy-kcal_100g'])
+        .map(p => ({
+          id: p._id,
+          name: p.product_name || "Unknown Food",
+          brand: p.brands ? `(${p.brands})` : "",
+          kcal: Math.round(p.nutriments['energy-kcal_100g']),
+          protein: Math.round(p.nutriments['proteins_100g'] || 0),
+          carbs: Math.round(p.nutriments['carbohydrates_100g'] || 0),
+          fat: Math.round(p.nutriments['fat_100g'] || 0)
+        }));
+        
+      setFoodResults(formattedResults);
+    } catch (error) {
+      alert("Error fetching food database: " + error.message);
+    }
+    setIsSearchingFood(false);
+  };
+
+  // Function to quickly add food macros to today's log (Standardized per 100g)
+  const addFoodToLog = (food) => {
+    const currentCal = parseFloat(dailyCalories) || 0;
+    setDailyCalories(currentCal + food.kcal); // Automatically updates the input field
+    alert(`Added ${food.name} (${food.kcal} kcal / 100g) to today's intake!`);
+    setFoodSearch('');
+    setFoodResults([]);
+  };
   // --- WORKOUT LOGIC ---
   const startWorkout = () => { setIsWorkoutActive(true); setSeconds(0); setActiveWorkout({}); };
 
@@ -435,78 +474,124 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
           </div>
         )}
 
-        {/* PROFILE TAB */}
+        {/* --- MODULE 1: METABOLISM TAB --- */}
+        {activeTab === 'tdee' && (
+          <div style={{padding: '20px', textAlign: 'center'}}>
+            <h2 style={{fontSize: '24px', marginBottom: '20px'}}>Metabolism Engine</h2>
+            
+            {/* TDEE Display Board */}
+            <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '30px'}}>
+              <p style={{color: '#8E8E93', margin: '0 0 10px 0'}}>Actual TDEE (Dynamic):</p>
+              <p style={{fontSize: '36px', fontWeight: 'bold', color: '#0A84FF', margin: 0}}>
+                {dynamicTDEE ? `${dynamicTDEE} kcal` : "Collecting data..."}
+              </p>
+              {!dynamicTDEE && <p style={{fontSize: '12px', color: '#8E8E93', marginTop: '10px'}}>A minimum of 7 days logged is required for accurate algorithm calibration.</p>}
+            </div>
+
+            {/* Input Form */}
+            <h3 style={{fontSize: '18px', marginBottom: '15px', textAlign: 'left'}}>Daily Log</h3>
+            <input 
+              type="number" 
+              placeholder="Today's Weight (kg)" 
+              value={dailyWeight} 
+              onChange={(e) => setDailyWeight(e.target.value)} 
+              style={styles.authInput} 
+            />
+            <input 
+              type="number" 
+              placeholder="Total Caloric Intake (kcal)" 
+              value={dailyCalories} 
+              onChange={(e) => setDailyCalories(e.target.value)} 
+              style={styles.authInput} 
+            />
+            <button onClick={logDailyMetrics} style={styles.mainBtn}>Log Data</button>
+          </div>
+        )}
+
+        {/* --- MODULE 2: NUTRITION TAB --- */}
+        {activeTab === 'food' && (
+          <div style={{padding: '20px'}}>
+            <h2 style={{fontSize: '24px', marginBottom: '20px', textAlign: 'center'}}>Nutrition Search</h2>
+            
+            <div style={{display: 'flex', gap: '10px', marginBottom: '15px'}}>
+              <input 
+                type="text" 
+                placeholder="Search food (e.g., banana, chicken)..." 
+                value={foodSearch} 
+                onChange={(e) => setFoodSearch(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && searchFood()}
+                style={{...styles.authInput, marginBottom: 0, flex: 1}} 
+              />
+              <button onClick={searchFood} style={{...styles.mainBtn, width: '80px', borderRadius: '8px'}}>
+                {isSearchingFood ? "..." : "Search"}
+              </button>
+            </div>
+
+            {/* Render Search Results */}
+            {foodResults.length > 0 ? (
+              <div style={{backgroundColor: '#0A0A0A', borderRadius: '12px', padding: '10px', maxHeight: '60vh', overflowY: 'auto'}}>
+                {foodResults.map((food) => (
+                  <div key={food.id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #1C1C1E'}}>
+                    <div style={{textAlign: 'left', flex: 1}}>
+                      <p style={{margin: '0 0 5px 0', fontSize: '15px', fontWeight: 'bold'}}>{food.name} <span style={{fontSize: '12px', color: '#8E8E93', fontWeight: 'normal'}}>{food.brand}</span></p>
+                      <p style={{margin: 0, fontSize: '12px', color: '#8E8E93'}}>
+                        <span style={{color: '#FF453A'}}>P: {food.protein}g</span> | <span style={{color: '#32ADE6'}}>C: {food.carbs}g</span> | <span style={{color: '#FFD60A'}}>F: {food.fat}g</span> 
+                      </p>
+                    </div>
+                    <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginLeft: '10px'}}>
+                      <span style={{color: '#34C759', fontWeight: 'bold', fontSize: '16px', marginBottom: '5px'}}>{food.kcal} kcal</span>
+                      <button onClick={() => addFoodToLog(food)} style={{backgroundColor: '#1C1C1E', color: '#0A84FF', border: 'none', borderRadius: '6px', padding: '5px 10px', fontWeight: 'bold', cursor: 'pointer'}}>+ Add 100g</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{textAlign: 'center', color: '#8E8E93', marginTop: '40px'}}>Search for an item to see its nutritional value per 100g.</p>
+            )}
+          </div>
+        )}
+
+        {/* --- PROFILE TAB (CLEANED UP) --- */}
         {activeTab === 'you' && (
-  <div style={{padding: '20px', textAlign: 'center'}}>
-    <h2 style={{fontSize: '24px', marginBottom: '20px'}}>Metabolism Engine</h2>
-    
-    {/* TDEE Display Board */}
-    <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '30px'}}>
-      <p style={{color: '#8E8E93', margin: '0 0 10px 0'}}>Actual TDEE (Dynamic):</p>
-      <p style={{fontSize: '36px', fontWeight: 'bold', color: '#0A84FF', margin: 0}}>
-        {dynamicTDEE ? `${dynamicTDEE} kcal` : "Collecting data..."}
-      </p>
-      {!dynamicTDEE && <p style={{fontSize: '12px', color: '#8E8E93', marginTop: '10px'}}>A minimum of 7 days logged is required for accurate algorithm calibration.</p>}
-    </div>
-
-    {/* Input Form */}
-    <h3 style={{fontSize: '18px', marginBottom: '15px', textAlign: 'left'}}>Daily Log</h3>
-    <input 
-      type="number" 
-      placeholder="Today's Weight (kg)" 
-      value={dailyWeight} 
-      onChange={(e) => setDailyWeight(e.target.value)} 
-      style={styles.authInput} 
-    />
-    <input 
-      type="number" 
-      placeholder="Total Caloric Intake (kcal)" 
-      value={dailyCalories} 
-      onChange={(e) => setDailyCalories(e.target.value)} 
-      style={styles.authInput} 
-    />
-    <button onClick={logDailyMetrics} style={styles.mainBtn}>Log Data</button>
-
-    <div style={{marginTop: '40px', borderTop: '1px solid #1C1C1E', paddingTop: '20px'}}>
-      <h2 style={{fontSize: '24px', marginBottom: '20px'}}>Account Details</h2>
-      <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '20px'}}>
-        <p style={{color: '#8E8E93', margin: '0 0 10px 0'}}>Logged in as:</p>
-        <p style={{fontSize: '18px', fontWeight: 'bold', margin: 0}}>{user.email}</p>
+          <div style={{padding: '20px', textAlign: 'center'}}>
+            <h2 style={{fontSize: '24px', marginBottom: '40px'}}>Account Details</h2>
+            <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '20px'}}>
+              <p style={{color: '#8E8E93', margin: '0 0 10px 0'}}>Logged in as:</p>
+              <p style={{fontSize: '18px', fontWeight: 'bold', margin: 0}}>{user.email}</p>
+            </div>
+            <button onClick={() => signOut(auth)} style={{...styles.authButton, backgroundColor: '#FF453A'}}>Sign Out</button>
+          </div>
+        )}
       </div>
-      <button onClick={() => signOut(auth)} style={{...styles.authButton, backgroundColor: '#FF453A'}}>Sign Out</button>
-    </div>
-  </div>
-)}
-</div>
+
       {/* EXERCISE MODAL */}
       {showExerciseModal && (
         <div style={styles.modalOverlay}>
-    <div style={styles.modalHeader}>
-      <span onClick={() => setShowExerciseModal(false)} style={{fontSize: '24px', cursor: 'pointer', color: '#8E8E93'}}>✕</span>
-      <h2 style={{margin: 0, fontSize: '18px'}}>Add Exercises</h2>
-      <span style={{width: '24px'}}></span>
-    </div>
-    
-    {/* PHẦN THÊM MỚI TÙY CHỈNH */}
-    <div style={{padding: '20px', borderBottom: '1px solid #1C1C1E', display: 'flex', gap: '10px'}}>
-      <input 
-        style={{...styles.authInput, marginBottom: 0, flex: 1}} 
-        placeholder="New exercise name..."
-        value={customExercise}
-        onChange={(e) => setCustomExercise(e.target.value)}
-      />
-      <button 
-        onClick={() => {
-          if(customExercise.trim()) {
-            addExerciseToWorkout(customExercise.trim());
-            setCustomExercise('');
-          }
-        }}
-        style={{...styles.mainBtn, width: '80px', borderRadius: '8px'}}
-      >Add</button>
-    </div>
+          <div style={styles.modalHeader}>
+            <span onClick={() => setShowExerciseModal(false)} style={{fontSize: '24px', cursor: 'pointer', color: '#8E8E93'}}>✕</span>
+            <h2 style={{margin: 0, fontSize: '18px'}}>Add Exercises</h2>
+            <span style={{width: '24px'}}></span>
+          </div>
+          
+          <div style={{padding: '20px', borderBottom: '1px solid #1C1C1E', display: 'flex', gap: '10px'}}>
+            <input 
+              style={{...styles.authInput, marginBottom: 0, flex: 1}} 
+              placeholder="New exercise name..."
+              value={customExercise}
+              onChange={(e) => setCustomExercise(e.target.value)}
+            />
+            <button 
+              onClick={() => {
+                if(customExercise.trim()) {
+                  addExerciseToWorkout(customExercise.trim());
+                  setCustomExercise('');
+                }
+              }}
+              style={{...styles.mainBtn, width: '80px', borderRadius: '8px'}}
+            >Add</button>
+          </div>
 
-    <div style={{overflowY: 'auto', paddingBottom: '50px'}}>
+          <div style={{overflowY: 'auto', paddingBottom: '50px'}}>
             {Object.entries(EXERCISE_DATABASE).map(([category, exercises]) => (
               <div key={category} style={{padding: '10px 20px'}}>
                 <h3 style={{color: '#0A84FF', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '10px'}}>{category}</h3>
@@ -522,9 +607,9 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
         </div>
       )}
 
-      {/* BOTTOM NAV */}
+      {/* BOTTOM NAV (UPDATED WITH 5 TABS) */}
       <nav style={styles.bottomNav}>
-        {['Workout', 'History', 'You'].map(tab => (
+        {['Workout', 'History', 'TDEE', 'Food', 'You'].map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab.toLowerCase())} 
             style={{...styles.navBtn, color: activeTab === tab.toLowerCase() ? '#FFFFFF' : '#48484A'}}>
             {tab}
