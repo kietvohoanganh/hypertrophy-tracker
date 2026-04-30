@@ -477,7 +477,7 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
     </div>
   </div>
 )}
-
+</div>
       {/* EXERCISE MODAL */}
       {showExerciseModal && (
         <div style={styles.modalOverlay}>
