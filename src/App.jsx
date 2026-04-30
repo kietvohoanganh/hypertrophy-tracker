@@ -53,7 +53,14 @@ export default function App() {
   const [foodSearch, setFoodSearch] = useState('');
   const [foodResults, setFoodResults] = useState([]);
   const [isSearchingFood, setIsSearchingFood] = useState(false);
-  const [activeTab, setActiveTab] = useState('workout'); 
+  // --- TAB PERSISTENCE STATE ---
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('eliteTrackerTab') || 'workout';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('eliteTrackerTab', activeTab);
+  }, [activeTab]);
   const [workoutHistory, setWorkoutHistory] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null); 
   const [weekOffset, setWeekOffset] = useState(0);
