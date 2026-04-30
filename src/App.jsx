@@ -69,6 +69,7 @@ export default function App() {
   const [selectedFood, setSelectedFood] = useState(null);
   const [foodWeight, setFoodWeight] = useState(100);
   const [cookingMethod, setCookingMethod] = useState('raw_boiled');
+  const [consumedFoods, setConsumedFoods] = useState([]);
   // New granular seasoning state
   const [activeSeasonings, setActiveSeasonings] = useState({});
   // --- USE EFFECTS ---
@@ -141,10 +142,12 @@ const logDailyMetrics = async () => {
       timestamp: Date.now(),
       date: new Date().toLocaleDateString('en-US'),
       weight: parseFloat(dailyWeight),
-      calories: parseFloat(dailyCalories)
+      calories: parseFloat(dailyCalories),
+      foods: consumedFoods // <-- ĐÍNH KÈM DANH SÁCH MÓN ĂN VÀO ĐÂY
     });
     setDailyWeight('');
     setDailyCalories('');
+    setConsumedFoods([]); // <-- XÓA TRẮNG DANH SÁCH TẠM
     alert("Daily metrics logged successfully!");
   } catch (e) {
     alert("Error logging data: " + e.message);
@@ -292,6 +295,14 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
     const currentCal = parseFloat(dailyCalories) || 0;
     setDailyCalories(currentCal + finalCalculatedKcal); 
     
+    const newFood = {
+      name: selectedFood.name,
+      weight: foodWeight,
+      kcal: finalCalculatedKcal,
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    };
+    setConsumedFoods(prev => [...prev, newFood]);
+
     alert(`Logged ${foodWeight}g of ${selectedFood.name} (${finalCalculatedKcal} kcal calculated).`);
     
     // Reset and close modal
@@ -556,11 +567,11 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
 
         {/* --- MODULE 1: METABOLISM TAB --- */}
         {activeTab === 'tdee' && (
-          <div style={{padding: '20px', textAlign: 'center'}}>
-            <h2 style={{fontSize: '24px', marginBottom: '20px'}}>Metabolism Engine</h2>
+          <div style={{padding: '20px'}}>
+            <h2 style={{fontSize: '24px', marginBottom: '20px', textAlign: 'center'}}>Metabolism Engine</h2>
             
             {/* TDEE Display Board */}
-            <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '30px'}}>
+            <div style={{backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '12px', marginBottom: '30px', textAlign: 'center'}}>
               <p style={{color: '#8E8E93', margin: '0 0 10px 0'}}>Actual TDEE (Dynamic):</p>
               <p style={{fontSize: '36px', fontWeight: 'bold', color: '#0A84FF', margin: 0}}>
                 {dynamicTDEE ? `${dynamicTDEE} kcal` : "Collecting data..."}
@@ -568,8 +579,22 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
               {!dynamicTDEE && <p style={{fontSize: '12px', color: '#8E8E93', marginTop: '10px'}}>A minimum of 7 days logged is required for accurate algorithm calibration.</p>}
             </div>
 
-            {/* Input Form */}
-            <h3 style={{fontSize: '18px', marginBottom: '15px', textAlign: 'left'}}>Daily Log</h3>
+            {/* Daily Input Form */}
+            <h3 style={{fontSize: '18px', marginBottom: '15px', textAlign: 'left', color: '#FFF'}}>Today's Entry</h3>
+            
+            {/* Hiển thị các món ăn vừa thêm vào trong ngày (Staging) */}
+            {consumedFoods.length > 0 && (
+              <div style={{backgroundColor: '#0A0A0A', padding: '15px', borderRadius: '8px', border: '1px solid #1C1C1E', marginBottom: '15px'}}>
+                <p style={{fontSize: '14px', color: '#8E8E93', margin: '0 0 10px 0'}}>Foods Queued for Logging:</p>
+                {consumedFoods.map((food, idx) => (
+                  <div key={idx} style={{display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px'}}>
+                    <span style={{color: '#FFF'}}>{food.weight}g {food.name}</span>
+                    <span style={{color: '#34C759', fontWeight: 'bold'}}>{food.kcal} kcal</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <input 
               type="number" 
               placeholder="Today's Weight (kg)" 
@@ -584,7 +609,43 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
               onChange={(e) => setDailyCalories(e.target.value)} 
               style={styles.authInput} 
             />
-            <button onClick={logDailyMetrics} style={styles.mainBtn}>Log Data</button>
+            <button onClick={logDailyMetrics} style={styles.mainBtn}>Confirm & Log Daily Metrics</button>
+
+            {/* Caloric Intake History */}
+            <h3 style={{fontSize: '20px', marginTop: '40px', marginBottom: '20px'}}>Caloric Intake History</h3>
+            {dailyLogs.length === 0 ? (
+              <p style={{color: '#8E8E93', textAlign: 'center'}}>No history available.</p>
+            ) : (
+              dailyLogs.map(log => (
+                <div key={log.id} style={styles.historyCard}>
+                  <div style={{...styles.historyHeader, borderBottom: log.foods && log.foods.length > 0 ? '1px solid #2C2C2E' : 'none'}}>
+                    <div style={{width: '100%'}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <p style={{margin: 0, fontWeight: 'bold', fontSize: '18px'}}>{log.date}</p>
+                        <p style={{margin: 0, color: '#34C759', fontWeight: 'bold', fontSize: '16px'}}>{log.calories} kcal</p>
+                      </div>
+                      <p style={{margin: '5px 0 0 0', color: '#8E8E93', fontSize: '14px'}}>Body Weight: {log.weight} kg</p>
+                    </div>
+                  </div>
+                  
+                  {/* Food List from Database */}
+                  {log.foods && log.foods.length > 0 && (
+                    <div style={{marginTop: '10px'}}>
+                      {log.foods.map((food, idx) => (
+                        <div key={idx} style={styles.historySetRow}>
+                          <span style={{fontWeight: 'bold', color: '#8E8E93', fontSize: '12px', width: '55px'}}>{food.time}</span>
+                          <div style={styles.dottedLine}></div>
+                          <div style={{textAlign: 'right'}}>
+                            <span style={{color: '#FFF', fontSize: '14px', display: 'block'}}>{food.name} ({food.weight}g)</span>
+                            <span style={{color: '#34C759', fontSize: '13px', fontWeight: 'bold'}}>{food.kcal} kcal</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         )}
 
