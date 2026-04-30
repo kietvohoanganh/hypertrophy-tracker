@@ -81,19 +81,22 @@ export default function App() {
     return () => unsubscribe();
   }, []);
   useEffect(() => {
-  if (user) {
-    const logsQuery = query(collection(db, "users", user.uid, "daily_logs"), orderBy("timestamp", "desc"));
-    const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
-      const logsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setDailyLogs(logsData);
-      
-      // Kích hoạt tính toán TDEE khi có dữ liệu (Ví dụ: Cần tối thiểu 7 ngày)
-      if (logsData.length >= 7) {
-        calculateDynamicTDEE(logsData);
-      }
-    });
-    return () => unsubscribe();
-  }
+    if (user) {
+      const logsQuery = query(collection(db, "users", user.uid, "daily_logs"), orderBy("timestamp", "desc"));
+      const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
+        const logsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setDailyLogs(logsData);
+        
+        // Kích hoạt tính toán TDEE khi có đủ dữ liệu (Tối thiểu 7 ngày)
+        if (logsData.length >= 7) {
+          calculateDynamicTDEE(logsData);
+        } else {
+          // BỔ SUNG: Xóa trắng kết quả TDEE nếu bạn lỡ xóa dữ liệu tụt xuống dưới 7 ngày
+          setDynamicTDEE(null);
+        }
+      });
+      return () => unsubscribe();
+    }
   }, [user]);
 
   useEffect(() => {
@@ -141,12 +144,12 @@ export default function App() {
   };
 
   const deleteDailyLog = async (logId) => {
-    if (window.confirm("Delete this daily log from your history? This cannot be undone.")) {
-      try {
-        await deleteDoc(doc(db, "users", user.uid, "daily_logs", logId));
-      } catch (error) { 
-        alert("Failed to delete log: " + error.message); 
-      }
+    // Bypassing window.confirm to prevent browser popup suppression
+    try {
+      await deleteDoc(doc(db, "users", user.uid, "daily_logs", logId));
+      alert("Nutrition log deleted successfully!");
+    } catch (error) { 
+      alert("Failed to delete log: " + error.message); 
     }
   };
 
@@ -392,10 +395,12 @@ export default function App() {
   };
 
   const deleteHistoryEntry = async (entryId) => {
-    if (window.confirm("Delete this workout from your cloud history? This cannot be undone.")) {
-      try {
-        await deleteDoc(doc(db, "users", user.uid, "history", entryId));
-      } catch (error) { alert("Failed to delete: " + error.message); }
+    // Bypassing window.confirm to prevent browser popup suppression
+    try {
+      await deleteDoc(doc(db, "users", user.uid, "history", entryId));
+      alert("Workout session deleted successfully!");
+    } catch (error) { 
+      alert("Failed to delete workout: " + error.message); 
     }
   };
 
