@@ -153,7 +153,15 @@ const logDailyMetrics = async () => {
     alert("Error logging data: " + e.message);
   }
 };
-
+const deleteDailyLog = async (logId) => {
+  if (window.confirm("Delete this daily log from your history? This cannot be undone.")) {
+    try {
+      await deleteDoc(doc(db, "users", user.uid, "daily_logs", logId));
+    } catch (error) { 
+      alert("Failed to delete log: " + error.message); 
+    }
+  }
+};
 
 // Dynamic TDEE Algorithm (14-day Sliding Window)
 const calculateDynamicTDEE = (logs, windowSize = 14) => {
@@ -619,12 +627,13 @@ const calculateDynamicTDEE = (logs, windowSize = 14) => {
               dailyLogs.map(log => (
                 <div key={log.id} style={styles.historyCard}>
                   <div style={{...styles.historyHeader, borderBottom: log.foods && log.foods.length > 0 ? '1px solid #2C2C2E' : 'none'}}>
-                    <div style={{width: '100%'}}>
-                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%'}}>
+                      <div>
                         <p style={{margin: 0, fontWeight: 'bold', fontSize: '18px'}}>{log.date}</p>
-                        <p style={{margin: 0, color: '#34C759', fontWeight: 'bold', fontSize: '16px'}}>{log.calories} kcal</p>
+                        <p style={{margin: '5px 0 0 0', color: '#34C759', fontWeight: 'bold', fontSize: '16px'}}>{log.calories} kcal</p>
+                        <p style={{margin: '5px 0 0 0', color: '#8E8E93', fontSize: '14px'}}>Body Weight: {log.weight} kg</p>
                       </div>
-                      <p style={{margin: '5px 0 0 0', color: '#8E8E93', fontSize: '14px'}}>Body Weight: {log.weight} kg</p>
+                      <button onClick={() => deleteDailyLog(log.id)} style={styles.deleteBtn}>Delete</button>
                     </div>
                   </div>
                   
