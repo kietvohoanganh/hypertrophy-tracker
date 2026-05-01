@@ -61,6 +61,15 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('eliteTrackerTab', activeTab);
   }, [activeTab]);
+  // --- FAVORITE EXERCISES STATE ---
+  const [favoriteExercises, setFavoriteExercises] = useState(() => {
+    const savedFavs = localStorage.getItem('eliteTrackerFavorites');
+    return savedFavs ? JSON.parse(savedFavs) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('eliteTrackerFavorites', JSON.stringify(favoriteExercises));
+  }, [favoriteExercises]);
   const [workoutHistory, setWorkoutHistory] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null); 
   const [weekOffset, setWeekOffset] = useState(0);
@@ -157,7 +166,15 @@ export default function App() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
-
+  const toggleFavorite = (e, exerciseName) => {
+    e.stopPropagation();
+    setFavoriteExercises(prev => {
+      if (prev.includes(exerciseName)) {
+        return prev.filter(ex => ex !== exerciseName);
+      }
+      return [...prev, exerciseName];
+    });
+  };
   const calculateCoachingMacros = () => {
     if (!profileWeight) return alert("Please enter your weight to calculate macros!");
     const weight = parseFloat(profileWeight);
@@ -882,17 +899,47 @@ export default function App() {
           </div>
 
           <div style={{overflowY: 'auto', paddingBottom: '50px'}}>
-            {Object.entries(EXERCISE_DATABASE).map(([category, exercises]) => (
-              <div key={category} style={{padding: '10px 20px'}}>
-                <h3 style={{color: '#0A84FF', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '10px'}}>{category}</h3>
-                {exercises.map(ex => (
-                  <div key={ex} onClick={() => addExerciseToWorkout(ex)} style={styles.exerciseListItem}>
-                    <span style={{fontSize: '16px'}}>{ex}</span>
-                    <span style={{color: '#0A84FF', fontSize: '24px', fontWeight: '300'}}>+</span>
-                  </div>
-                ))}
-              </div>
-            ))}
+            {Object.entries(EXERCISE_DATABASE).map(([category, exercises]) => {
+              
+              // Sort exercises: Favorites first
+              const sortedExercises = [...exercises].sort((a, b) => {
+                const aFav = favoriteExercises.includes(a);
+                const bFav = favoriteExercises.includes(b);
+                if (aFav && !bFav) return -1;
+                if (!aFav && bFav) return 1;
+                return 0;
+              });
+
+              return (
+                <div key={category} style={{padding: '10px 20px'}}>
+                  <h3 style={{color: '#0A84FF', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '10px'}}>{category}</h3>
+                  {sortedExercises.map(ex => {
+                    const isFav = favoriteExercises.includes(ex);
+                    return (
+                      <div key={ex} onClick={() => addExerciseToWorkout(ex)} style={styles.exerciseListItem}>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                          <span 
+                            onClick={(e) => toggleFavorite(e, ex)} 
+                            style={{
+                              fontSize: '22px', 
+                              cursor: 'pointer', 
+                              color: isFav ? '#FFD60A' : '#2C2C2E',
+                              transition: 'color 0.2s'
+                            }}
+                          >
+                            {isFav ? '★' : '☆'}
+                          </span>
+                          <span style={{fontSize: '16px', color: isFav ? '#FFFFFF' : '#8E8E93', fontWeight: isFav ? 'bold' : 'normal'}}>
+                            {ex}
+                          </span>
+                        </div>
+                        <span style={{color: '#0A84FF', fontSize: '24px', fontWeight: '300'}}>+</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
