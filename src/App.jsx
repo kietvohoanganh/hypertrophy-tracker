@@ -62,14 +62,23 @@ export default function App() {
     localStorage.setItem('eliteTrackerTab', activeTab);
   }, [activeTab]);
   // --- FAVORITE EXERCISES STATE ---
-  const [favoriteExercises, setFavoriteExercises] = useState(() => {
-    const savedFavs = localStorage.getItem('eliteTrackerFavorites');
-    return savedFavs ? JSON.parse(savedFavs) : [];
-  });
+  // --- FAVORITE EXERCISES STATE (FIREBASE SYNCED) ---
+  const [favoriteExercises, setFavoriteExercises] = useState([]);
 
+  // Lắng nghe dữ liệu favorites từ Firebase Firestore
   useEffect(() => {
-    localStorage.setItem('eliteTrackerFavorites', JSON.stringify(favoriteExercises));
-  }, [favoriteExercises]);
+    if (user) {
+      const prefsRef = doc(db, "users", user.uid, "preferences", "exercises");
+      const unsubscribe = onSnapshot(prefsRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setFavoriteExercises(docSnap.data().favorites || []);
+        } else {
+          setFavoriteExercises([]); // Nếu chưa có dữ liệu thì set mảng rỗng
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, [user]);
   const [workoutHistory, setWorkoutHistory] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null); 
   const [weekOffset, setWeekOffset] = useState(0);
@@ -166,15 +175,27 @@ export default function App() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
-  const toggleFavorite = (e, exerciseName) => {
+  const toggleFavorite = async (e, exerciseName) => {
     e.stopPropagation();
-    setFavoriteExercises(prev => {
-      if (prev.includes(exerciseName)) {
-        return prev.filter(ex => ex !== exerciseName);
-      }
-      return [...prev, exerciseName];
-    });
+    if (!user) return;
+
+    // Xác định trạng thái mới của danh sách yêu thích
+    const isCurrentlyFav = favoriteExercises.includes(exerciseName);
+    const newFavorites = isCurrentlyFav 
+      ? favoriteExercises.filter(ex => ex !== exerciseName)
+      : [...favoriteExercises, exerciseName];
+
+    // Cập nhật lên Firebase Firestore
+    try {
+      const prefsRef = doc(db, "users", user.uid, "preferences", "exercises");
+      await setDoc(prefsRef, {
+        favorites: newFavorites
+      }, { merge: true }); // Dùng merge để không ghi đè mất các preferences khác nếu có sau này
+    } catch (error) {
+      alert("Error syncing favorites: " + error.message);
+    }
   };
+  
   const calculateCoachingMacros = () => {
     if (!profileWeight) return alert("Please enter your weight to calculate macros!");
     const weight = parseFloat(profileWeight);
