@@ -332,6 +332,7 @@ export default function App() {
   const [templateFormError, setTemplateFormError] = useState('');
   const [importImagePreview, setImportImagePreview] = useState('');
   const [importImageBase64, setImportImageBase64] = useState('');
+  const [importImageMimeType, setImportImageMimeType] = useState('image/jpeg');
   const [importImageFileName, setImportImageFileName] = useState('');
   const [isParsingTemplateImage, setIsParsingTemplateImage] = useState(false);
   const [hasParsedImport, setHasParsedImport] = useState(false);
@@ -343,6 +344,7 @@ export default function App() {
   const importParseRequestIdRef = useRef(0);
   const isSavingCustomExerciseRef = useRef(false);
   const isSavingTemplateRef = useRef(false);
+  const templateDragIndexRef = useRef(null);
   const isSavingImportedTemplateRef = useRef(false);
   const [currentTemplateId, setCurrentTemplateId] = useState(null);
   const [currentTemplateName, setCurrentTemplateName] = useState('');
@@ -1394,6 +1396,7 @@ export default function App() {
     importParseRequestIdRef.current += 1;
     setImportImagePreview('');
     setImportImageBase64('');
+    setImportImageMimeType('image/jpeg');
     setImportImageFileName('');
     setIsParsingTemplateImage(false);
     setHasParsedImport(false);
@@ -1457,6 +1460,7 @@ export default function App() {
     importParseRequestIdRef.current = requestId;
     setImportImagePreview('');
     setImportImageBase64('');
+    setImportImageMimeType('image/jpeg');
     setImportImageFileName('');
     setIsParsingTemplateImage(false);
     setImportedTemplateName('');
@@ -1476,6 +1480,8 @@ export default function App() {
       return;
     }
 
+    const fileMimeType = file.type === 'image/jpg' ? 'image/jpeg' : file.type;
+
     const reader = new FileReader();
     reader.onload = () => {
       if (importParseRequestIdRef.current !== requestId) return;
@@ -1483,6 +1489,7 @@ export default function App() {
       const dataUrl = String(reader.result || '');
       setImportImagePreview(dataUrl);
       setImportImageBase64(dataUrl.split(',')[1] || '');
+      setImportImageMimeType(fileMimeType);
       setImportImageFileName(file.name);
     };
     reader.onerror = () => {
@@ -1511,7 +1518,8 @@ export default function App() {
     setHasParsedImport(false);
 
     try {
-      const parsedTemplate = await parseWorkoutTemplateImage(imageBase64ToParse);
+      const mimeTypeToParse = importImageMimeType;
+      const parsedTemplate = await parseWorkoutTemplateImage(imageBase64ToParse, mimeTypeToParse);
       if (importParseRequestIdRef.current !== requestId) return;
 
       const parsedExercises = Array.isArray(parsedTemplate.exercises) ? parsedTemplate.exercises : [];
@@ -1734,6 +1742,16 @@ export default function App() {
     ]);
     setTemplateExerciseSearch('');
     setTemplateFormError('');
+  };
+
+  const moveTemplateExercise = (fromIndex, toIndex) => {
+    if (toIndex < 0 || toIndex >= templateExercises.length) return;
+    setTemplateExercises(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
   };
 
   const removeTemplateExercise = (index) => {
@@ -2724,7 +2742,7 @@ export default function App() {
 
       {/* CREATE EXERCISE MODAL */}
       {showCreateExerciseModal && (
-        <div className="modal-surface modal-shell" style={{...styles.modalOverlay, zIndex: 340}} role="dialog" aria-modal="true" aria-labelledby="create-exercise-title">
+        <div className="modal-surface modal-shell modal-shell--top" style={{...styles.modalOverlay, zIndex: 360}} role="dialog" aria-modal="true" aria-labelledby="create-exercise-title">
           <div className="modal-header" style={styles.modalHeader}>
             <span style={{width: '24px'}}></span>
             <h2 id="create-exercise-title" style={{margin: 0, fontSize: '18px'}}>Create exercise</h2>
@@ -2861,11 +2879,57 @@ export default function App() {
             ) : (
               <div style={styles.templateExerciseEditorList}>
                 {templateExercises.map((exercise, index) => (
-                  <div key={`${exercise.exerciseId}-${index}`} style={styles.templateExerciseEditorCard}>
+                  <div
+                    key={`${exercise.exerciseId}-${index}`}
+                    draggable
+                    onDragStart={() => { templateDragIndexRef.current = index; }}
+                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.outline = `2px solid ${THEME.accentGold}`; e.currentTarget.style.outlineOffset = '2px'; }}
+                    onDragLeave={(e) => { e.currentTarget.style.outline = 'none'; }}
+                    onDrop={(e) => {
+                      e.currentTarget.style.outline = 'none';
+                      if (templateDragIndexRef.current !== null && templateDragIndexRef.current !== index) {
+                        moveTemplateExercise(templateDragIndexRef.current, index);
+                      }
+                      templateDragIndexRef.current = null;
+                    }}
+                    onDragEnd={(e) => { e.currentTarget.style.outline = 'none'; templateDragIndexRef.current = null; }}
+                    style={styles.templateExerciseEditorCard}
+                  >
                     <div style={styles.templateExerciseEditorTop}>
-                      <div style={{minWidth: 0}}>
+                      <div style={styles.templateDragHandle} title="Drag to reorder" aria-hidden="true">
+                        <svg width="14" height="22" viewBox="0 0 14 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="3" cy="4" r="2" fill="currentColor"/><circle cx="11" cy="4" r="2" fill="currentColor"/>
+                          <circle cx="3" cy="11" r="2" fill="currentColor"/><circle cx="11" cy="11" r="2" fill="currentColor"/>
+                          <circle cx="3" cy="18" r="2" fill="currentColor"/><circle cx="11" cy="18" r="2" fill="currentColor"/>
+                        </svg>
+                      </div>
+                      <div style={{minWidth: 0, flex: 1}}>
                         <h4 style={styles.templateExerciseEditorTitle}>{index + 1}. {exercise.exerciseName}</h4>
                         <p style={styles.templateExerciseEditorGroup}>{exercise.muscleGroup}</p>
+                      </div>
+                      <div style={styles.templateReorderButtons}>
+                        <button
+                          type="button"
+                          className="mu-icon-button"
+                          onClick={() => moveTemplateExercise(index, index - 1)}
+                          disabled={index === 0}
+                          style={{ ...styles.templateReorderBtn, opacity: index === 0 ? 0.3 : 1 }}
+                          aria-label={`Move ${exercise.exerciseName} up`}
+                          title="Move up"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2L1 8h10L6 2z" fill="currentColor"/></svg>
+                        </button>
+                        <button
+                          type="button"
+                          className="mu-icon-button"
+                          onClick={() => moveTemplateExercise(index, index + 1)}
+                          disabled={index === templateExercises.length - 1}
+                          style={{ ...styles.templateReorderBtn, opacity: index === templateExercises.length - 1 ? 0.3 : 1 }}
+                          aria-label={`Move ${exercise.exerciseName} down`}
+                          title="Move down"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 10L11 4H1l5 6z" fill="currentColor"/></svg>
+                        </button>
                       </div>
                       <button className="mu-button mu-danger-btn" onClick={() => removeTemplateExercise(index)} style={styles.templateRemoveBtn}>
                         Remove
@@ -4087,9 +4151,36 @@ const styles = {
   templateExerciseEditorTop: {
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: '12px',
+    alignItems: 'center',
+    gap: '8px',
     marginBottom: '12px',
+  },
+  templateDragHandle: {
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    padding: '4px',
+    color: THEME.textSecondary,
+    cursor: 'grab',
+    opacity: 0.5,
+    userSelect: 'none',
+  },
+  templateReorderButtons: {
+    flexShrink: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '3px',
+  },
+  templateReorderBtn: {
+    minHeight: '26px',
+    minWidth: '30px',
+    padding: '4px 6px',
+    color: THEME.textSecondary,
+    fontSize: '10px',
+    border: `1px solid ${THEME.border}`,
+    borderRadius: '8px',
+    background: 'rgba(255,255,255,0.04)',
+    cursor: 'pointer',
   },
   templateExerciseEditorTitle: {
     margin: 0,

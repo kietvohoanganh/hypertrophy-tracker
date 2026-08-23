@@ -847,6 +847,10 @@ label.mu-button {
   backdrop-filter: none !important;
 }
 
+.modal-shell--top {
+  z-index: calc(var(--z-modal) + 40) !important;
+}
+
 .modal-header {
   min-height: calc(62px + var(--safe-top));
   padding: calc(10px + var(--safe-top)) 14px 10px !important;
