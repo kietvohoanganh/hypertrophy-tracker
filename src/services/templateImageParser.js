@@ -2,8 +2,7 @@ import { getApp } from 'firebase/app';
 import {
   getAI,
   getGenerativeModel,
-  GoogleAIBackend,
-  Schema,
+  VertexAIBackend,
 } from 'firebase/ai';
 import { parseWorkoutTextToParsedTemplate } from '../utils/exerciseParsing.js';
 
@@ -17,8 +16,23 @@ const PARSER_NOT_CONFIGURED_MESSAGE = 'Image parser service is not configured.';
 const WORKOUT_IMAGE_PROMPT = `You are a fitness app assistant. Analyze the workout plan image provided.
 Extract all exercises with their sets, reps, and any notes from the image.
 Look for workout session names or headings as the template name.
-Return a JSON object matching the required schema exactly. Do not include markdown.
-If you cannot detect a workout plan, return an empty exercises array.`;
+Return a JSON object with this exact structure:
+{
+  "templateName": "string",
+  "exercises": [
+    {
+      "exerciseName": "string",
+      "muscleGroup": "string",
+      "sets": "string",
+      "reps": "string",
+      "weight": "string",
+      "notes": "string",
+      "confidence": 0.9
+    }
+  ],
+  "rawText": "string"
+}
+Do not include markdown. If you cannot detect a workout plan, return an empty exercises array.`;
 
 // ---------------------------------------------------------------------------
 // Mock data (dev only)
@@ -191,45 +205,22 @@ const tryLocalEndpoint = async (imageBase64) => {
 };
 
 // ---------------------------------------------------------------------------
-// Gemini AI (Firebase AI Logic) — production path
+// Gemini AI — direct API path (no Firebase AI Logic)
 // ---------------------------------------------------------------------------
 
-const exerciseSchema = Schema.object({
-  properties: {
-    exerciseName: Schema.string(),
-    muscleGroup: Schema.string(),
-    sets: Schema.string(),
-    reps: Schema.string(),
-    weight: Schema.string(),
-    notes: Schema.string(),
-    confidence: Schema.number(),
-  },
-});
-
-const workoutTemplateSchema = Schema.object({
-  properties: {
-    templateName: Schema.string(),
-    exercises: Schema.array({ items: exerciseSchema }),
-    rawText: Schema.string(),
-  },
-});
-
-let geminiTemplateModel = null;
+let _geminiTemplateModel = null;
 
 const getGeminiTemplateModel = () => {
-  if (geminiTemplateModel) return geminiTemplateModel;
-
-  const ai = getAI(getApp(), { backend: new GoogleAIBackend() });
-  geminiTemplateModel = getGenerativeModel(ai, {
-    model: 'gemini-2.5-flash',
+  if (_geminiTemplateModel) return _geminiTemplateModel;
+  const ai = getAI(getApp(), { backend: new VertexAIBackend() });
+  _geminiTemplateModel = getGenerativeModel(ai, {
+    model: 'gemini-2.0-flash',
     generationConfig: {
       responseMimeType: 'application/json',
-      responseSchema: workoutTemplateSchema,
       temperature: 0.1,
     },
   });
-
-  return geminiTemplateModel;
+  return _geminiTemplateModel;
 };
 
 const getGeminiParserError = (error) => {
@@ -238,7 +229,7 @@ const getGeminiParserError = (error) => {
   const message = String(error?.message || '').toLowerCase();
 
   if (code.includes('api-not-enabled') || message.includes('api is not enabled')) {
-    return new Error('Workout image parsing needs Firebase AI Logic enabled for this project.');
+    return new Error('Workout image parsing needs Vertex AI enabled for this Firebase project.');
   }
 
   if (status === 429 || code.includes('quota')) {
@@ -246,7 +237,7 @@ const getGeminiParserError = (error) => {
   }
 
   if (status === 401 || status === 403) {
-    return new Error('Firebase AI could not authorize this request. Check AI Logic and App Check settings.');
+    return new Error('Firebase AI could not authorize this request. Make sure Vertex AI API is enabled in your Google Cloud project.');
   }
 
   if (code.includes('fetch-error') || code.includes('network')) {
@@ -259,6 +250,7 @@ const getGeminiParserError = (error) => {
 const parseWithGemini = async (imageBase64, mimeType = 'image/jpeg') => {
   try {
     const model = getGeminiTemplateModel();
+
     const result = await model.generateContent([
       WORKOUT_IMAGE_PROMPT,
       {
@@ -325,6 +317,6 @@ export const parseWorkoutTemplateImage = async (imageBase64, mimeType = 'image/j
     }
   }
 
-  // 3. Production (or dev fallback): use Gemini AI
+  // 3. Production (or dev fallback): use Gemini AI directly
   return parseWithGemini(imageBase64, mimeType);
 };

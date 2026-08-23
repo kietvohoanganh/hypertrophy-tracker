@@ -1418,10 +1418,13 @@ export default function App() {
     resetImportTemplateForm();
   };
 
+  const generateTempId = () => Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+
   const buildImportedExerciseReview = (parsedExercise) => {
     const mappedExercise = mapParsedExerciseToTemplateExercise(parsedExercise, allExerciseLibrary);
 
     return {
+      _uid: generateTempId(),
       ...mappedExercise,
       setCount: String(mappedExercise.sets.length || 1),
       reps: getUniformSetValue(mappedExercise.sets, 'reps'),
@@ -1430,6 +1433,7 @@ export default function App() {
   };
 
   const buildLibraryExerciseForImport = (exercise) => ({
+    _uid: generateTempId(),
     exerciseId: exercise.exerciseId,
     exerciseName: exercise.exerciseName,
     muscleGroup: exercise.muscleGroup,
@@ -1446,6 +1450,7 @@ export default function App() {
 
     return {
       ...exercise,
+      _uid: exercise._uid || generateTempId(),
       exerciseId: libraryMatch?.exerciseId || createImportedExerciseId(exercise.muscleGroup, exercise.exerciseName),
       isNewExercise: !libraryMatch,
     };
@@ -1757,6 +1762,16 @@ export default function App() {
   const removeTemplateExercise = (index) => {
     setTemplateExercises(prev => prev.filter((_, exerciseIndex) => exerciseIndex !== index));
     setTemplateFormError('');
+  };
+
+  const moveImportedTemplateExercise = (fromIndex, toIndex) => {
+    if (toIndex < 0 || toIndex >= importedTemplateExercises.length) return;
+    setImportedTemplateExercises(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
   };
 
   const updateTemplateExerciseSetCount = (index, count) => {
@@ -2880,9 +2895,7 @@ export default function App() {
               <div style={styles.templateExerciseEditorList}>
                 {templateExercises.map((exercise, index) => (
                   <div
-                    key={`${exercise.exerciseId}-${index}`}
-                    draggable
-                    onDragStart={() => { templateDragIndexRef.current = index; }}
+                    key={exercise._uid || `${exercise.exerciseId}-${index}`}
                     onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.outline = `2px solid ${THEME.accentGold}`; e.currentTarget.style.outlineOffset = '2px'; }}
                     onDragLeave={(e) => { e.currentTarget.style.outline = 'none'; }}
                     onDrop={(e) => {
@@ -2896,7 +2909,13 @@ export default function App() {
                     style={styles.templateExerciseEditorCard}
                   >
                     <div style={styles.templateExerciseEditorTop}>
-                      <div style={styles.templateDragHandle} title="Drag to reorder" aria-hidden="true">
+                      <div
+                        style={{ ...styles.templateDragHandle, cursor: 'grab' }}
+                        draggable
+                        onDragStart={() => { templateDragIndexRef.current = index; }}
+                        title="Drag to reorder"
+                        aria-hidden="true"
+                      >
                         <svg width="14" height="22" viewBox="0 0 14 22" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <circle cx="3" cy="4" r="2" fill="currentColor"/><circle cx="11" cy="4" r="2" fill="currentColor"/>
                           <circle cx="3" cy="11" r="2" fill="currentColor"/><circle cx="11" cy="11" r="2" fill="currentColor"/>
@@ -3100,9 +3119,35 @@ export default function App() {
 	                      const isLowConfidence = confidenceLabel === 'Low';
 
 	                      return (
-	                        <div key={`${exercise.exerciseId}-${index}`} style={styles.importReviewCard}>
+	                        <div
+	                          key={exercise._uid || `${exercise.exerciseId}-${index}`}
+	                          onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.outline = `2px solid ${THEME.accentGold}`; e.currentTarget.style.outlineOffset = '2px'; }}
+	                          onDragLeave={(e) => { e.currentTarget.style.outline = 'none'; }}
+	                          onDrop={(e) => {
+	                            e.currentTarget.style.outline = 'none';
+	                            if (templateDragIndexRef.current !== null && templateDragIndexRef.current !== index) {
+	                              moveImportedTemplateExercise(templateDragIndexRef.current, index);
+	                            }
+	                            templateDragIndexRef.current = null;
+	                          }}
+	                          onDragEnd={(e) => { e.currentTarget.style.outline = 'none'; templateDragIndexRef.current = null; }}
+	                          style={styles.importReviewCard}
+	                        >
 	                          <div style={styles.importReviewCardTop}>
-	                            <div style={{minWidth: 0}}>
+	                            <div
+	                              style={{ ...styles.templateDragHandle, cursor: 'grab' }}
+	                              draggable
+	                              onDragStart={() => { templateDragIndexRef.current = index; }}
+	                              title="Drag to reorder"
+	                              aria-hidden="true"
+	                            >
+	                              <svg width="14" height="22" viewBox="0 0 14 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                                <circle cx="3" cy="4" r="2" fill="currentColor"/><circle cx="11" cy="4" r="2" fill="currentColor"/>
+	                                <circle cx="3" cy="11" r="2" fill="currentColor"/><circle cx="11" cy="11" r="2" fill="currentColor"/>
+	                                <circle cx="3" cy="18" r="2" fill="currentColor"/><circle cx="11" cy="18" r="2" fill="currentColor"/>
+	                              </svg>
+	                            </div>
+	                            <div style={{minWidth: 0, flex: 1}}>
 	                              <h4 style={styles.templateExerciseEditorTitle}>{index + 1}. {exercise.exerciseName || 'Unnamed exercise'}</h4>
 	                              <div style={styles.importBadges}>
 	                                <span style={styles.importConfidenceBadge}>Confidence: {confidenceLabel}</span>
@@ -3111,6 +3156,30 @@ export default function App() {
 	                              {isLowConfidence && (
 	                                <p style={styles.importReviewWarning}>Please review this item.</p>
 	                              )}
+	                            </div>
+	                            <div style={styles.templateReorderButtons}>
+	                              <button
+	                                type="button"
+	                                className="mu-icon-button"
+	                                onClick={() => moveImportedTemplateExercise(index, index - 1)}
+	                                disabled={index === 0}
+	                                style={{ ...styles.templateReorderBtn, opacity: index === 0 ? 0.3 : 1 }}
+	                                aria-label={`Move ${exercise.exerciseName} up`}
+	                                title="Move up"
+	                              >
+	                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2L1 8h10L6 2z" fill="currentColor"/></svg>
+	                              </button>
+	                              <button
+	                                type="button"
+	                                className="mu-icon-button"
+	                                onClick={() => moveImportedTemplateExercise(index, index + 1)}
+	                                disabled={index === importedTemplateExercises.length - 1}
+	                                style={{ ...styles.templateReorderBtn, opacity: index === importedTemplateExercises.length - 1 ? 0.3 : 1 }}
+	                                aria-label={`Move ${exercise.exerciseName} down`}
+	                                title="Move down"
+	                              >
+	                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 10L11 4H1l5 6z" fill="currentColor"/></svg>
+	                              </button>
 	                            </div>
 	                            <button className="mu-button mu-danger-btn" onClick={() => removeImportedTemplateExercise(index)} style={styles.templateRemoveBtn}>
 	                              Remove

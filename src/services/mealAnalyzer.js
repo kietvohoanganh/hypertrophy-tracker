@@ -2,8 +2,7 @@ import { getApp } from 'firebase/app';
 import {
   getAI,
   getGenerativeModel,
-  GoogleAIBackend,
-  Schema,
+  VertexAIBackend,
 } from 'firebase/ai';
 import { estimateMealDescriptionLocally } from './localMealEstimator.js';
 
@@ -14,35 +13,6 @@ const DESCRIPTION_ANALYSIS_PROMPT =
   'Analyze this meal description. Estimate calories, protein, carbs, and fat for each food item and the total meal. Return JSON only. Do not include markdown. If portion size is missing, make a reasonable estimate and mark confidence lower.';
 
 const DEFAULT_ERROR_MESSAGE = 'AI meal analysis failed. Please try again.';
-const FIREBASE_AI_SETUP_MESSAGE =
-  'Meal photo analysis needs Firebase AI Logic enabled for this project.';
-
-const mealItemSchema = Schema.object({
-  properties: {
-    name: Schema.string(),
-    estimatedGrams: Schema.number(),
-    kcal: Schema.number(),
-    protein: Schema.number(),
-    carbs: Schema.number(),
-    fat: Schema.number(),
-    confidence: Schema.number(),
-  },
-});
-
-const mealAnalysisSchema = Schema.object({
-  properties: {
-    mealName: Schema.string(),
-    totalKcal: Schema.number(),
-    totalProtein: Schema.number(),
-    totalCarbs: Schema.number(),
-    totalFat: Schema.number(),
-    confidence: Schema.number(),
-    items: Schema.array({ items: mealItemSchema }),
-    notes: Schema.string(),
-  },
-});
-
-let firebaseMealModel = null;
 
 const clampNumber = (value, min = 0, max = Number.POSITIVE_INFINITY) => {
   const parsedValue = Number(value);
@@ -125,20 +95,19 @@ export const normalizeMealAnalysis = (payload) => {
   };
 };
 
-const getFirebaseMealModel = () => {
-  if (firebaseMealModel) return firebaseMealModel;
+let _firebaseMealModel = null;
 
-  const ai = getAI(getApp(), { backend: new GoogleAIBackend() });
-  firebaseMealModel = getGenerativeModel(ai, {
-    model: 'gemini-2.5-flash',
+const getFirebaseMealModel = () => {
+  if (_firebaseMealModel) return _firebaseMealModel;
+  const ai = getAI(getApp(), { backend: new VertexAIBackend() });
+  _firebaseMealModel = getGenerativeModel(ai, {
+    model: 'gemini-2.0-flash',
     generationConfig: {
       responseMimeType: 'application/json',
-      responseSchema: mealAnalysisSchema,
       temperature: 0.2,
     },
   });
-
-  return firebaseMealModel;
+  return _firebaseMealModel;
 };
 
 const getMealAnalysisError = (error) => {
@@ -147,7 +116,7 @@ const getMealAnalysisError = (error) => {
   const message = String(error?.message || '').toLowerCase();
 
   if (code.includes('api-not-enabled') || message.includes('api is not enabled')) {
-    return new Error(FIREBASE_AI_SETUP_MESSAGE);
+    return new Error('Meal analysis needs Vertex AI enabled for this Firebase project.');
   }
 
   if (status === 429 || code.includes('quota')) {
@@ -155,7 +124,7 @@ const getMealAnalysisError = (error) => {
   }
 
   if (status === 401 || status === 403) {
-    return new Error('Firebase AI could not authorize this request. Check AI Logic and App Check settings.');
+    return new Error('Firebase AI could not authorize this request. Make sure Vertex AI API is enabled in your Google Cloud project.');
   }
 
   if (code.includes('fetch-error') || code.includes('network')) {
